@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from ventoy_iso_check.catalog import match_entry
-from ventoy_iso_check.models import CatalogEntry, IsoItem, Status
+from ventoy_iso_check.models import (
+    CatalogEntry,
+    IsoItem,
+    Status,
+    from_timestamp,
+    utc_now,
+)
 
 
 SKIP_DIR_DEFAULTS = {
@@ -17,6 +24,22 @@ SKIP_DIR_DEFAULTS = {
     ".git",
     ".venv",
 }
+
+
+def _stat_times(path: Path) -> tuple[datetime | None, datetime | None, int]:
+    """Return (mtime, birthtime, size). birthtime may be None on many FS."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None, None, 0
+
+    mtime = from_timestamp(st.st_mtime)
+    birth = None
+    # Linux: st_birthtime only on some FS; macOS has it; Windows/9p often not.
+    birth_ts = getattr(st, "st_birthtime", None)
+    if birth_ts and birth_ts > 0:
+        birth = from_timestamp(birth_ts)
+    return mtime, birth, st.st_size
 
 
 def scan_isos(
@@ -33,17 +56,14 @@ def scan_isos(
     if deep:
         skip.discard("MediCat.USB.v21.12")
 
+    now = utc_now()
     items: list[IsoItem] = []
 
     for dirpath, dirnames, filenames in root.walk(on_error=lambda _e: None):
-        # prune directories in-place
         dirnames[:] = [
-            d
-            for d in dirnames
-            if d not in skip and not d.startswith(".")
+            d for d in dirnames if d not in skip and not d.startswith(".")
         ]
 
-        # avoid walking extremely deep vendor trees
         try:
             rel_dir = dirpath.relative_to(root)
         except ValueError:
@@ -58,10 +78,12 @@ def scan_isos(
             suffix = path.suffix.lower()
             if suffix not in exts:
                 continue
-            try:
-                size = path.stat().st_size
-            except OSError:
-                size = 0
+
+            mtime, birth, size = _stat_times(path)
+            ref = birth or mtime
+            age_days = None
+            if ref is not None:
+                age_days = max(0.0, (now - ref).total_seconds() / 86400.0)
 
             relpath = str(path.relative_to(root))
             entry, local_version = match_entry(name, entries)
@@ -71,6 +93,9 @@ def scan_isos(
                 relpath=relpath,
                 size=size,
                 filename=name,
+                mtime=mtime,
+                birthtime=birth,
+                age_days=age_days,
             )
             if entry:
                 item.catalog_id = entry.id

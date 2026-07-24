@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -45,9 +46,18 @@ class IsoItem:
     page: str | None = None
     note: str | None = None
     sisou_updater: str | None = None
+    # Timestamps from the filesystem (local file on the Ventoy volume)
+    mtime: datetime | None = None  # last modification — usually copy/download time
+    birthtime: datetime | None = None  # creation if the FS exposes it
+    age_days: float | None = None
     extras: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
+        def _iso(dt: datetime | None) -> str | None:
+            if dt is None:
+                return None
+            return dt.isoformat()
+
         return {
             "path": str(self.path),
             "relpath": self.relpath,
@@ -63,4 +73,42 @@ class IsoItem:
             "page": self.page,
             "note": self.note,
             "sisou_updater": self.sisou_updater,
+            "mtime": _iso(self.mtime),
+            "birthtime": _iso(self.birthtime),
+            "age_days": self.age_days,
+            "file_date": self.file_date_str(),
+            "age_label": self.age_label(),
         }
+
+    def file_date_str(self) -> str:
+        """Best single date to show: birthtime if available else mtime."""
+        dt = self.birthtime or self.mtime
+        if not dt:
+            return "—"
+        return dt.astimezone().strftime("%Y-%m-%d")
+
+    def age_label(self) -> str:
+        if self.age_days is None:
+            return "—"
+        d = self.age_days
+        if d < 1:
+            hours = max(1, int(d * 24))
+            return f"{hours}h"
+        if d < 45:
+            return f"{int(d)}d"
+        if d < 365:
+            return f"{d / 30:.1f}mo"
+        return f"{d / 365:.1f}y"
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def from_timestamp(ts: float | None) -> datetime | None:
+    if ts is None:
+        return None
+    try:
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        return None

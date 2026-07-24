@@ -164,6 +164,26 @@ Python **3.12** es necesario para wheels de `libtorrent` (dependencia de sisou).
 | `--deep` | — | Incluye árboles tipo MediCat |
 | `--offline` | — | check sin red |
 | `--dry-run` | — | download sin ejecutar |
+| `--sort path\|date\|age\|status` | — | Orden de la tabla |
+| `--stale-days N` | — | Resalta archivos con mtime ≥ N días (default 180; `0` = off) |
+| `--no-dates` | — | Oculta columnas File date / Age |
+
+### Fecha del archivo (copia / descarga)
+
+Cada fila muestra:
+
+- **File date** — `mtime` del ISO en el disco (en la práctica: cuándo se copió o descargó al volumen). Si el FS expone `birthtime`, se usa como preferencia.
+- **Age** — antigüedad relativa (`3d`, `2.1mo`, `1.5y`). Colores: verde &lt; 30d, amarillo &lt; 180d, rojo ≥ 180d (o el umbral de `--stale-days`).
+
+```bash
+# Más antiguas primero
+uv run ventoy-iso-check scan /mnt/e --sort age
+
+# Solo “viejas” visualmente (mtime ≥ 90 días)
+uv run ventoy-iso-check scan /mnt/e --stale-days 90 --sort age
+```
+
+> **Nota:** en copias entre discos, el SO a veces conserva el mtime original del archivo; no siempre es el instante exacto de la última descarga.
 
 ---
 

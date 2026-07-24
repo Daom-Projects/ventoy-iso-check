@@ -22,45 +22,105 @@ STATUS_STYLE = {
 
 
 def format_size(n: int) -> str:
+    size = float(n)
     for unit in ("B", "KB", "MB", "GB", "TB"):
-        if n < 1024:
-            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} PB"
+        if size < 1024:
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} PB"
 
 
-def print_table(items: list[IsoItem], *, show_urls: bool = False) -> None:
+def _age_style(age_days: float | None, *, stale_days: int | None) -> str:
+    if age_days is None:
+        return "dim"
+    if stale_days is not None and age_days >= stale_days:
+        return "bold red"
+    if age_days < 30:
+        return "green"
+    if age_days < 180:
+        return "yellow"
+    return "red"
+
+
+def print_table(
+    items: list[IsoItem],
+    *,
+    show_urls: bool = False,
+    show_dates: bool = True,
+    stale_days: int | None = 180,
+    sort_by: str = "path",
+) -> None:
+    rows = list(items)
+    if sort_by == "age":
+        rows.sort(
+            key=lambda i: (i.age_days is None, -(i.age_days or 0), i.relpath.lower())
+        )
+    elif sort_by == "date":
+        rows.sort(
+            key=lambda i: (
+                i.mtime is None,
+                -(i.mtime.timestamp() if i.mtime else 0),
+                i.relpath.lower(),
+            )
+        )
+    elif sort_by == "status":
+        order = {
+            Status.OUTDATED: 0,
+            Status.ERROR: 1,
+            Status.UNKNOWN: 2,
+            Status.UNSUPPORTED: 3,
+            Status.MANUAL: 4,
+            Status.OK: 5,
+        }
+        rows.sort(key=lambda i: (order.get(i.status, 9), i.relpath.lower()))
+    else:
+        rows.sort(key=lambda i: i.relpath.lower())
+
     table = Table(
         title="Ventoy ISO check",
         show_lines=False,
         expand=True,
     )
-    table.add_column("Rel path", overflow="fold", min_width=28)
+    table.add_column("Rel path", overflow="fold", min_width=24)
     table.add_column("Label", style="bold")
     table.add_column("Local", justify="right")
     table.add_column("Latest", justify="right")
     table.add_column("Status", justify="center")
-    table.add_column("Managed", justify="center")
+    if show_dates:
+        table.add_column("File date", justify="center")
+        table.add_column("Age", justify="right")
     table.add_column("Size", justify="right")
+    table.add_column("Managed", justify="center")
     if show_urls:
         table.add_column("URL / page", overflow="fold")
 
-    for it in items:
+    stale_count = 0
+    for it in rows:
         style = STATUS_STYLE.get(it.status, "")
         status_text = Text(it.status.value, style=style)
-        row = [
+        row: list = [
             it.relpath,
             it.label or "—",
             it.local_version or "—",
             it.latest_version or "—",
             status_text,
-            it.managed_by,
-            format_size(it.size),
         ]
+        if show_dates:
+            age_style = _age_style(it.age_days, stale_days=stale_days)
+            row.append(Text(it.file_date_str(), style=age_style))
+            row.append(Text(it.age_label(), style=age_style))
+            if (
+                stale_days is not None
+                and it.age_days is not None
+                and it.age_days >= stale_days
+            ):
+                stale_count += 1
+        row.append(format_size(it.size))
+        row.append(it.managed_by)
         if show_urls:
             link = it.download_url or it.page or it.note or "—"
-            if len(link) > 72:
-                link = link[:69] + "..."
+            if len(link) > 64:
+                link = link[:61] + "..."
             row.append(link)
         table.add_row(*row)
 
@@ -70,7 +130,15 @@ def print_table(items: list[IsoItem], *, show_urls: bool = False) -> None:
     for it in items:
         counts[it.status.value] = counts.get(it.status.value, 0) + 1
     summary = "  ".join(f"{k}={v}" for k, v in sorted(counts.items()))
-    console.print(f"[bold]Resumen:[/bold] total={len(items)}  {summary}")
+    extra = ""
+    if show_dates and stale_days is not None:
+        extra = f"  stale(≥{stale_days}d)={stale_count}"
+    console.print(f"[bold]Resumen:[/bold] total={len(items)}  {summary}{extra}")
+    if show_dates:
+        console.print(
+            "[dim]File date = mtime del archivo en el disco "
+            "(suele ser copia/descarga). En algunos FS no hay birthtime.[/dim]"
+        )
 
 
 def write_json(items: list[IsoItem], path: Path) -> None:
@@ -86,25 +154,36 @@ def write_links_markdown(items: list[IsoItem], path: Path) -> None:
         "",
         "Generado por `ventoy-iso-check`.",
         "",
-        "| Archivo | Local | Latest | Status | Enlace |",
-        "|---------|-------|--------|--------|--------|",
+        "| Archivo | Local | Latest | Status | File date | Age | Enlace |",
+        "|---------|-------|--------|--------|-----------|-----|--------|",
     ]
     for it in items:
-        if it.status not in (Status.OUTDATED, Status.UNKNOWN, Status.MANUAL, Status.ERROR):
-            # still include outdated/manual primarily
+        if it.status not in (
+            Status.OUTDATED,
+            Status.UNKNOWN,
+            Status.MANUAL,
+            Status.ERROR,
+        ):
             if it.status == Status.OK and not it.download_url:
                 continue
         link = it.download_url or it.page or ""
         note = f" ({it.note})" if it.note and not it.download_url else ""
         lines.append(
             f"| `{it.relpath}` | {it.local_version or '—'} | {it.latest_version or '—'} "
-            f"| {it.status.value} | {link}{note} |"
+            f"| {it.status.value} | {it.file_date_str()} | {it.age_label()} "
+            f"| {link}{note} |"
         )
-    # also list all with any URL at the end
     lines.extend(["", "## Todas las URLs detectadas", ""])
     for it in items:
         if it.download_url:
-            lines.append(f"- **{it.label or it.filename}** (`{it.local_version}` → `{it.latest_version}`): {it.download_url}")
+            lines.append(
+                f"- **{it.label or it.filename}** "
+                f"(`{it.local_version}` → `{it.latest_version}`, "
+                f"{it.file_date_str()} / {it.age_label()}): {it.download_url}"
+            )
         elif it.page:
-            lines.append(f"- **{it.label or it.filename}** (página): {it.page}")
+            lines.append(
+                f"- **{it.label or it.filename}** "
+                f"({it.file_date_str()}): {it.page}"
+            )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

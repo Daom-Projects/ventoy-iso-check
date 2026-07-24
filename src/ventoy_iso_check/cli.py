@@ -38,6 +38,21 @@ def _root_arg() -> Path:
     return default_ventoy_root()
 
 
+def _display_opts(
+    *,
+    show_urls: bool,
+    no_dates: bool,
+    stale_days: Optional[int],
+    sort_by: str,
+) -> dict:
+    return {
+        "show_urls": show_urls,
+        "show_dates": not no_dates,
+        "stale_days": stale_days,
+        "sort_by": sort_by,
+    }
+
+
 @app.callback()
 def main_callback(
     ctx: typer.Context,
@@ -72,16 +87,30 @@ def scan_cmd(
     json_out: Optional[Path] = typer.Option(
         None, "--json", help="Escribir inventario a JSON."
     ),
+    no_dates: bool = typer.Option(
+        False, "--no-dates", help="Ocultar columnas de fecha/edad del archivo."
+    ),
+    stale_days: Optional[int] = typer.Option(
+        180,
+        "--stale-days",
+        help="Resaltar ISOs con mtime ≥ N días (default 180). 0 = desactivar.",
+    ),
+    sort_by: str = typer.Option(
+        "path",
+        "--sort",
+        help="Orden: path | date | age | status",
+    ),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
-    """Solo inventario local (sin red)."""
+    """Solo inventario local (sin red). Incluye fecha de archivo y edad."""
     _setup_log(log_level)
     ventoy = (root or _root_arg()).resolve()
     if not ventoy.is_dir():
         console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
         raise typer.Exit(2)
     items = run_check(ventoy, catalog_path=catalog, deep=deep, online=False)
-    print_table(items, show_urls=False)
+    sd = None if stale_days == 0 else stale_days
+    print_table(items, **_display_opts(show_urls=False, no_dates=no_dates, stale_days=sd, sort_by=sort_by))
     if json_out:
         write_json(items, json_out)
         console.print(f"JSON escrito en {json_out}")
@@ -109,6 +138,19 @@ def check_cmd(
     show_urls: bool = typer.Option(
         False, "--urls", help="Mostrar columna de URL/página."
     ),
+    no_dates: bool = typer.Option(
+        False, "--no-dates", help="Ocultar columnas de fecha/edad del archivo."
+    ),
+    stale_days: Optional[int] = typer.Option(
+        180,
+        "--stale-days",
+        help="Resaltar ISOs con mtime ≥ N días (default 180). 0 = desactivar.",
+    ),
+    sort_by: str = typer.Option(
+        "path",
+        "--sort",
+        help="Orden: path | date | age | status",
+    ),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
     """Comparar ISOs locales con las últimas versiones conocidas (sin descargar)."""
@@ -125,7 +167,13 @@ def check_cmd(
         online=not offline,
         only=only_set,
     )
-    print_table(items, show_urls=show_urls)
+    sd = None if stale_days == 0 else stale_days
+    print_table(
+        items,
+        **_display_opts(
+            show_urls=show_urls, no_dates=no_dates, stale_days=sd, sort_by=sort_by
+        ),
+    )
     if json_out:
         write_json(items, json_out)
         console.print(f"JSON escrito en {json_out}")
@@ -146,6 +194,9 @@ def links_cmd(
     catalog: Optional[Path] = typer.Option(None, "--catalog", "-c"),
     only: Optional[str] = typer.Option(None, "--only"),
     deep: bool = typer.Option(False, "--deep"),
+    no_dates: bool = typer.Option(False, "--no-dates"),
+    stale_days: Optional[int] = typer.Option(180, "--stale-days"),
+    sort_by: str = typer.Option("path", "--sort"),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
     """Generar enlaces directos / páginas oficiales (Markdown)."""
@@ -158,7 +209,13 @@ def links_cmd(
     items = run_check(
         ventoy, catalog_path=catalog, deep=deep, online=True, only=only_set
     )
-    print_table(items, show_urls=True)
+    sd = None if stale_days == 0 else stale_days
+    print_table(
+        items,
+        **_display_opts(
+            show_urls=True, no_dates=no_dates, stale_days=sd, sort_by=sort_by
+        ),
+    )
     write_links_markdown(items, output)
     console.print(f"[green]Enlaces escritos en[/green] {output.resolve()}")
 
