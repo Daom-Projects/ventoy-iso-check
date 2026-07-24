@@ -12,6 +12,15 @@ Enfoque **híbrido**:
 
 Repositorio: [github.com/Daom-Projects/ventoy-iso-check](https://github.com/Daom-Projects/ventoy-iso-check)
 
+### Documentación para agentes y roadmap
+
+| Documento | Contenido |
+|-----------|-----------|
+| [AGENTS.md](./AGENTS.md) | Instrucciones para agentes de código |
+| [docs/CONTEXT.md](./docs/CONTEXT.md) | Contexto de dominio (Ventoy, WSL, políticas) |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Arquitectura de módulos |
+| [docs/PHASED_PLAN.md](./docs/PHASED_PLAN.md) | **Plan de mejoras por fases** (ejecutable) |
+
 ---
 
 ## ¿Se puede ejecutar desde el mismo disco en Linux, macOS y Windows?
