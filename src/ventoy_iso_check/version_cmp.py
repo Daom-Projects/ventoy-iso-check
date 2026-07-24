@@ -10,6 +10,9 @@ def _normalize(v: str) -> str:
     v = re.sub(r"\s*LTS\s*", "", v, flags=re.I)
     # Drop codename suffixes: 2.6.1-plucky → 2.6.1
     v = re.sub(r"-(noble|resolute|plucky|bionic|jammy|focal)(\b|$)", "", v, flags=re.I)
+    # Pop!_OS: 24.04-nvidia-r27 → 24.04.27 (drop flavor token for numeric compare)
+    v = re.sub(r"-(nvidia|intel|generic)\b", "", v, flags=re.I)
+    v = re.sub(r"-r(\d+)\b", r".\1", v, flags=re.I)
     # Fedora style 43-1.6 → 43.1.6 for comparison
     v = v.replace("_", ".")
     # Proxmox / clonezilla style keep hyphens as dots for packaging.Version

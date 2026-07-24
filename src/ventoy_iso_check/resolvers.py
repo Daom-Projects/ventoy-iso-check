@@ -54,62 +54,119 @@ def _ubuntu_clean_version(ver: str) -> str:
     return ver.replace(" LTS", "").replace("LTS", "").strip()
 
 
+def _ubuntu_is_lts_label(raw_version: str, clean: str) -> bool:
+    if "LTS" in raw_version.upper():
+        return True
+    # yy.04 series are LTS (24.04, 26.04, …)
+    parts = clean.split(".")
+    return len(parts) >= 2 and parts[1] == "04"
+
+
+def _ubuntu_series(ver: str) -> str:
+    parts = _ubuntu_clean_version(ver).split(".")
+    if len(parts) >= 2:
+        return f"{parts[0]}.{parts[1]}"
+    return ver
+
+
 def resolve_ubuntu(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
-    """Use Ubuntu meta-release; prefer same series as the local ISO when possible."""
+    """Ubuntu meta-release with LTS-aware upgrade target.
+
+    Policy (what users expect for a Ventoy multi-ISO stick):
+    - ``latest`` = newest **supported LTS** when local is LTS or live-server,
+      otherwise newest supported release overall.
+    - Point-releases within the same series are still considered (e.g. 24.04.3 → 24.04.4),
+      but a newer LTS (26.04) always wins over staying on 24.04.x.
+    - ``note`` mentions the current point-release of the local series when it differs.
+    """
     edition = (entry.edition or "desktop").lower()
     try:
         with _client() as client:
             r = client.get("https://changelogs.ubuntu.com/meta-release")
             r.raise_for_status()
             blocks = r.text.strip().split("\n\n")
-            candidates: list[str] = []
+            all_supported: list[str] = []
+            lts_supported: list[str] = []
             for block in blocks:
                 meta = {}
                 for line in block.splitlines():
                     if ":" in line:
                         k, v = line.split(":", 1)
                         meta[k.strip()] = v.strip()
-                ver = meta.get("Version")
-                if not ver:
+                raw = meta.get("Version")
+                if not raw or meta.get("Supported") != "1":
                     continue
-                if meta.get("Supported") == "1":
-                    candidates.append(_ubuntu_clean_version(ver))
+                clean = _ubuntu_clean_version(raw)
+                all_supported.append(clean)
+                if _ubuntu_is_lts_label(raw, clean):
+                    lts_supported.append(clean)
 
-            if not candidates:
+            if not all_supported:
                 return ResolveResult(error="No supported Ubuntu releases found")
 
-            latest: str | None = None
-            if local_version:
-                local_clean = _ubuntu_clean_version(local_version)
-                series = ".".join(local_clean.split(".")[:2])  # 24.04 or 25.10
+            latest_any = _best_version(all_supported)
+            latest_lts = _best_version(lts_supported) if lts_supported else latest_any
+
+            series_best: str | None = None
+            local_clean = _ubuntu_clean_version(local_version) if local_version else None
+            local_series = _ubuntu_series(local_clean) if local_clean else None
+            local_is_lts = bool(
+                local_series and local_series.split(".")[-1:] == ["04"]
+            )
+
+            if local_series:
                 series_matches = [
-                    v for v in candidates if v == series or v.startswith(series + ".")
+                    v
+                    for v in all_supported
+                    if v == local_series or v.startswith(local_series + ".")
                 ]
-                if series_matches:
-                    latest = _best_version(series_matches)
+                series_best = _best_version(series_matches)
 
-            if not latest:
-                # No same-series match: report highest supported (may be a jump)
-                latest = _best_version(candidates)
+            # Upgrade target:
+            # - live-server / LTS local → latest LTS (e.g. 24.04.4 → 26.04)
+            # - interim desktop → latest supported overall (often the new LTS)
+            prefer_lts = edition == "live-server" or local_is_lts or not local_clean
+            target = latest_lts if prefer_lts else latest_any
+            if not target:
+                target = latest_any
+            # If series has a newer point than target somehow, keep the higher
+            if series_best and target:
+                from packaging.version import InvalidVersion, Version
 
-            if not latest:
+                try:
+                    if Version(series_best) > Version(target):
+                        target = series_best
+                except InvalidVersion:
+                    pass
+
+            if not target:
                 return ResolveResult(error="Could not determine Ubuntu version")
 
-            series = ".".join(latest.split(".")[:2])
+            series = _ubuntu_series(target)
             if edition == "live-server":
-                fname = f"ubuntu-{latest}-live-server-amd64.iso"
+                fname = f"ubuntu-{target}-live-server-amd64.iso"
             else:
-                fname = f"ubuntu-{latest}-desktop-amd64.iso"
+                fname = f"ubuntu-{target}-desktop-amd64.iso"
             url = f"https://releases.ubuntu.com/{series}/{fname}"
             head = client.head(url)
             if head.status_code >= 400:
-                url_alt = f"https://releases.ubuntu.com/{latest}/{fname}"
+                url_alt = f"https://releases.ubuntu.com/{target}/{fname}"
                 if client.head(url_alt).status_code < 400:
                     url = url_alt
+
+            notes: list[str] = []
+            if series_best and series_best != target:
+                notes.append(
+                    f"Serie local al día en {series_best}; LTS/objetivo recomendado: {target}"
+                )
+            if latest_lts and latest_any and latest_lts != latest_any:
+                notes.append(f"Última LTS={latest_lts}; última release={latest_any}")
+
             return ResolveResult(
-                latest_version=latest,
+                latest_version=target,
                 download_url=url,
                 page=f"https://releases.ubuntu.com/{series}/",
+                note="; ".join(notes) if notes else None,
             )
     except Exception as e:
         log.debug("ubuntu resolve failed: %s", e)
@@ -117,30 +174,37 @@ def resolve_ubuntu(entry: CatalogEntry, local_version: str | None) -> ResolveRes
 
 
 def resolve_ubuntu_budgie(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Ubuntu Budgie: prefer newest release; note if local series still has a point update."""
     try:
         with _client() as client:
             r = client.get("https://cdimage.ubuntu.com/ubuntu-budgie/releases/")
             r.raise_for_status()
             versions = _find_versions(r.text, r'href="(\d+\.\d+(?:\.\d+)?)/"')
-            # filter out junk
             versions = [v for v in versions if not v.startswith("0")]
             latest = _best_version(versions)
             if not latest:
                 return ResolveResult(error="No budgie releases found", page=entry.page)
-            series = ".".join(latest.split(".")[:2])
-            # Prefer local series point-release if possible
+
+            series_best = None
+            note = None
             if local_version:
-                loc_series = ".".join(local_version.split(".")[:2])
-                series_vers = [v for v in versions if v.startswith(loc_series)]
-                if series_vers:
-                    latest = _best_version(series_vers) or latest
-                    series = loc_series
+                loc_series = _ubuntu_series(local_version)
+                series_vers = [
+                    v for v in versions if v == loc_series or v.startswith(loc_series + ".")
+                ]
+                series_best = _best_version(series_vers)
+                if series_best and series_best != latest:
+                    note = (
+                        f"Serie local al día en {series_best}; "
+                        f"release más nueva: {latest}"
+                    )
+
+            series = _ubuntu_series(latest)
             fname = f"ubuntu-budgie-{latest}-desktop-amd64.iso"
             url = (
                 f"https://cdimage.ubuntu.com/ubuntu-budgie/releases/"
                 f"{latest}/release/{fname}"
             )
-            # sometimes path uses series only
             head = client.head(url)
             if head.status_code >= 400:
                 url = (
@@ -151,9 +215,113 @@ def resolve_ubuntu_budgie(entry: CatalogEntry, local_version: str | None) -> Res
                 latest_version=latest,
                 download_url=url,
                 page=f"https://cdimage.ubuntu.com/ubuntu-budgie/releases/{latest}/",
+                note=note,
             )
     except Exception as e:
         return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_popos(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Pop!_OS ISOs on iso.pop-os.org (no public dir listing; probe builds).
+
+    Filename: pop-os_{series}_amd64_{flavor}_{build}.iso
+    e.g. pop-os_24.04_amd64_nvidia_27.iso
+    """
+    flavor = (entry.edition or "nvidia").lower()
+    if flavor not in ("nvidia", "intel", "generic"):
+        flavor = "nvidia"
+
+    # local_version may be "24.04", "24.04-nvidia-r27", or "24.04-r27"
+    series = "24.04"
+    local_build: int | None = None
+    if local_version:
+        m = re.match(
+            r"(?P<series>\d+\.\d+)(?:-(?P<flavor>nvidia|intel|generic))?(?:-r(?P<build>\d+))?",
+            local_version,
+            flags=re.I,
+        )
+        if m:
+            series = m.group("series")
+            if m.group("build"):
+                local_build = int(m.group("build"))
+            if m.group("flavor"):
+                flavor = m.group("flavor").lower()
+
+    try:
+        with _client() as client:
+            # Prefer same series as local; also check a couple of known series.
+            series_candidates = []
+            for s in (series, "24.04", "22.04", "26.04"):
+                if s not in series_candidates:
+                    series_candidates.append(s)
+
+            best: tuple[str, int, str] | None = None  # series, build, url
+            for s in series_candidates:
+                # Probe builds high→low; current nvidia tops around 27+
+                for build in range(40, 0, -1):
+                    fname = f"pop-os_{s}_amd64_{flavor}_{build}.iso"
+                    url = f"https://iso.pop-os.org/{s}/amd64/{flavor}/{build}/{fname}"
+                    try:
+                        head = client.head(url)
+                    except Exception:
+                        continue
+                    if head.status_code == 200:
+                        best = (s, build, url)
+                        break
+                if best and s == series:
+                    break  # found latest on local series; still allow newer series below
+
+            # If a newer series has any build, prefer that series' best
+            newer_series_best: tuple[str, int, str] | None = None
+            for s in series_candidates:
+                if s == series:
+                    continue
+                for build in range(40, 0, -1):
+                    fname = f"pop-os_{s}_amd64_{flavor}_{build}.iso"
+                    url = f"https://iso.pop-os.org/{s}/amd64/{flavor}/{build}/{fname}"
+                    try:
+                        head = client.head(url)
+                    except Exception:
+                        continue
+                    if head.status_code == 200:
+                        # only treat as newer if series version is higher
+                        from packaging.version import InvalidVersion, Version
+
+                        try:
+                            if Version(s) > Version(series):
+                                newer_series_best = (s, build, url)
+                        except InvalidVersion:
+                            pass
+                        break
+
+            chosen = newer_series_best or best
+            if not chosen:
+                return ResolveResult(
+                    error="No Pop!_OS ISO found via probe",
+                    page=entry.page or "https://system76.com/pop/download/",
+                )
+
+            s, build, url = chosen
+            latest = f"{s}-r{build}"
+            note = None
+            if local_build is not None and s == series and build == local_build:
+                note = f"Build actual {flavor} r{build}"
+            elif local_build is not None and s == series and build > local_build:
+                note = f"Nuevo build {flavor}: r{local_build} → r{build}"
+            elif newer_series_best:
+                note = f"Nueva serie Pop!_OS {s} disponible"
+
+            return ResolveResult(
+                latest_version=latest,
+                download_url=url,
+                page=entry.page or "https://system76.com/pop/download/",
+                note=note,
+            )
+    except Exception as e:
+        return ResolveResult(
+            error=str(e),
+            page=entry.page or "https://system76.com/pop/download/",
+        )
 
 
 def resolve_linuxmint(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
@@ -531,6 +699,7 @@ RESOLVERS = {
     "cachyos": resolve_cachyos,
     "hirens": resolve_hirens,
     "zorin": resolve_zorin,
+    "popos": resolve_popos,
     "none": lambda e, v: ResolveResult(page=e.page, note=e.note),
 }
 

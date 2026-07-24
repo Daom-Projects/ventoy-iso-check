@@ -62,5 +62,10 @@ def match_entry(
                     # Zorin: major + optional revision number
                     if entry.id == "zorin" and len(parts) > 1:
                         version = "-".join(parts)
+                    # Pop!_OS: series + flavor + build → 24.04-nvidia-r27
+                    if entry.id == "popos" and len(parts) >= 3:
+                        version = f"{parts[0]}-{parts[1]}-r{parts[2]}"
+                    elif entry.id == "popos" and len(parts) == 1:
+                        version = parts[0]
             return entry, version
     return None, None

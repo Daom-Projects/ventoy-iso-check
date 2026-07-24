@@ -47,6 +47,18 @@ entries:
     resolver: ubuntu_budgie
     arch: amd64
 
+  - id: popos
+    label: Pop!_OS
+    patterns:
+      - '(?i)^pop-os_(\d+\.\d+)_amd64_(nvidia|intel|generic)_(\d+)\.iso$'
+      - '(?i)^pop-os_(\d+\.\d+)_.*\.iso$'
+    managed_by: catalog
+    page: https://system76.com/pop/download/
+    resolver: popos
+    edition: nvidia
+    arch: amd64
+    note: "ISO System76; builds nvidia/intel/generic en iso.pop-os.org"
+
   - id: linuxmint-cinnamon
     label: Linux Mint Cinnamon
     patterns:
