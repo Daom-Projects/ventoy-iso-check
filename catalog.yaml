@@ -1,0 +1,287 @@
+# Catálogo de ISOs conocidas en el Ventoy de /mnt/e
+# managed_by:
+#   sisou   → actualizar con SuperISOUpdater
+#   catalog → resolver de enlaces / versión propia
+#   manual  → solo inventario + nota (sin auto-update)
+
+defaults:
+  skip_dir_names:
+    - MediCat.USB.v21.12
+    - $RECYCLE.BIN
+    - System Volume Information
+    - Bootloaders
+    - windows95-win32-x64-3.1.1
+    - PortableApps
+    - Programs
+  extensions: [".iso", ".img"]
+
+entries:
+  - id: ubuntu-desktop
+    label: Ubuntu Desktop
+    patterns:
+      - '(?i)^ubuntu-(\d+\.\d+(?:\.\d+)?)-desktop-amd64\.iso$'
+    managed_by: sisou
+    sisou_updater: Ubuntu
+    page: https://releases.ubuntu.com/
+    resolver: ubuntu
+    edition: desktop
+    arch: amd64
+
+  - id: ubuntu-live-server
+    label: Ubuntu Live Server
+    patterns:
+      - '(?i)^ubuntu-(\d+\.\d+(?:\.\d+)?)-live-server-amd64\.iso$'
+    managed_by: sisou
+    sisou_updater: Ubuntu
+    page: https://releases.ubuntu.com/
+    resolver: ubuntu
+    edition: live-server
+    arch: amd64
+
+  - id: ubuntu-budgie
+    label: Ubuntu Budgie
+    patterns:
+      - '(?i)^ubuntu-budgie-(\d+\.\d+(?:\.\d+)?)-desktop-amd64\.iso$'
+    managed_by: catalog
+    page: https://cdimage.ubuntu.com/ubuntu-budgie/releases/
+    resolver: ubuntu_budgie
+    arch: amd64
+
+  - id: linuxmint-cinnamon
+    label: Linux Mint Cinnamon
+    patterns:
+      - '(?i)^linuxmint-(\d+(?:\.\d+)?)-cinnamon-64bit\.iso$'
+    managed_by: sisou
+    sisou_updater: LinuxMint
+    page: https://linuxmint.com/download.php
+    resolver: linuxmint
+    edition: cinnamon
+
+  - id: fedora-workstation
+    label: Fedora Workstation
+    patterns:
+      - '(?i)^Fedora-Workstation-Live-(\d+(?:-\d+(?:\.\d+)?)?)\.x86_64\.iso$'
+      - '(?i)^Fedora-Workstation-Live-x86_64-(\d+(?:-\d+(?:\.\d+)?)?)\.iso$'
+    managed_by: sisou
+    sisou_updater: Fedora
+    page: https://fedoraproject.org/workstation/download
+    resolver: fedora
+    edition: Workstation
+    arch: x86_64
+
+  - id: fedora-silverblue
+    label: Fedora Silverblue
+    patterns:
+      - '(?i)^Fedora-Silverblue-ostree-x86_64-(\d+(?:-\d+(?:\.\d+)?)?)\.iso$'
+      - '(?i)^Fedora-Silverblue-.*-(\d+(?:-\d+(?:\.\d+)?)?)\.iso$'
+    managed_by: sisou
+    sisou_updater: Fedora
+    page: https://fedoraproject.org/atomic-desktops/silverblue/download/
+    resolver: fedora
+    edition: Silverblue
+    arch: x86_64
+
+  - id: kali-installer
+    label: Kali Linux Installer
+    patterns:
+      - '(?i)^kali-linux-(\d+\.\d+)-installer-amd64\.iso$'
+    managed_by: sisou
+    sisou_updater: KaliLinux
+    page: https://www.kali.org/get-kali/
+    resolver: kali
+    edition: installer
+    arch: amd64
+
+  - id: cachyos-desktop
+    label: CachyOS Desktop
+    patterns:
+      - '(?i)^cachyos-desktop-linux-(\d+)\.iso$'
+      - '(?i)^cachyos-desktop-linux-(\d{6})\.iso$'
+    managed_by: sisou
+    sisou_updater: CachyOS
+    page: https://cachyos.org/download/
+    resolver: cachyos
+    edition: desktop
+
+  - id: tails
+    label: Tails
+    patterns:
+      - '(?i)^tails-amd64-(\d+(?:\.\d+)*)\.(?:img|iso)$'
+    managed_by: sisou
+    sisou_updater: Tails
+    page: https://tails.net/install/download/
+    resolver: tails
+    arch: amd64
+
+  - id: proxmox-ve
+    label: Proxmox VE
+    patterns:
+      - '(?i)^proxmox-ve[_-](\d+\.\d+-\d+)\.iso$'
+    managed_by: sisou
+    sisou_updater: Proxmox
+    page: https://www.proxmox.com/en/downloads
+    resolver: proxmox
+    edition: ve
+
+  - id: clonezilla
+    label: Clonezilla Live
+    patterns:
+      - '(?i)^clonezilla-live-(\d+\.\d+\.\d+-\d+)-amd64\.iso$'
+    managed_by: sisou
+    sisou_updater: Clonezilla
+    page: https://clonezilla.org/downloads.php
+    resolver: clonezilla
+    arch: amd64
+
+  - id: systemrescue
+    label: SystemRescue
+    patterns:
+      - '(?i)^systemrescue-(\d+\.\d+)-amd64\.iso$'
+    managed_by: sisou
+    sisou_updater: SystemRescue
+    page: https://www.system-rescue.org/Download/
+    resolver: systemrescue
+    arch: amd64
+
+  - id: rescuezilla
+    label: Rescuezilla
+    patterns:
+      - '(?i)^rescuezilla-(\d+\.\d+\.\d+)-64bit\.([a-z]+)\.iso$'
+      - '(?i)^rescuezilla-(\d+\.\d+\.\d+)-(64bit|32bit)(?:\.([a-z]+))?\.iso$'
+      - '(?i)^rescuezilla-(\d+\.\d+\.\d+)-32bit\.([a-z]+)\.iso$'
+    managed_by: sisou
+    sisou_updater: Rescuezilla
+    page: https://rescuezilla.com/download
+    resolver: rescuezilla
+
+  - id: hirens-bootcd-pe
+    label: Hiren's BootCD PE
+    patterns:
+      - '(?i)^HBCD_PE(?:_x64|_\[\[VER\]\]_x64)?\.iso$'
+      - '(?i)^HBCD_PE(?:_(\d+(?:\.\d+)*)_)?x64\.iso$'
+      - '(?i)^HBCD_PE.*\.iso$'
+    managed_by: sisou
+    sisou_updater: HirensBootCDPE
+    page: https://www.hirensbootcd.org/download/
+    resolver: hirens
+
+  - id: windows11
+    label: Windows 11
+    patterns:
+      - '(?i)^Win11_(\d+H\d)_.*\.iso$'
+      - '(?i)^Win11_.*\.iso$'
+    managed_by: sisou
+    sisou_updater: Windows11
+    page: https://www.microsoft.com/software-download/windows11
+    resolver: none
+    note: "Actualizar con sisou (idioma Spanish Mexico). Sin API de versión fiable en check local."
+
+  - id: windows10
+    label: Windows 10
+    patterns:
+      - '(?i)^Win10_.*\.iso$'
+    managed_by: manual
+    page: https://www.microsoft.com/software-download/windows10
+    resolver: none
+    note: "Usar Media Creation Tool de Microsoft. Win10 22H2 es la última."
+
+  - id: windows81
+    label: Windows 8.1
+    patterns:
+      - '(?i)^Win8\.1_.*\.iso$'
+    managed_by: manual
+    page: https://www.microsoft.com/
+    resolver: none
+    note: "EOL. Conservar ISO actual; no hay actualizaciones de imagen oficiales."
+
+  - id: windows7
+    label: Windows 7
+    patterns:
+      - '(?i)^Windows\s*7.*\.iso$'
+    managed_by: manual
+    page: https://www.microsoft.com/
+    resolver: none
+    note: "EOL. ISO modificada/local; no auto-update."
+
+  # MiniOS antes que XP/Server para que no capturen "WinXP MiniOS" / "WinSrv03-MiniOS"
+  - id: minios
+    label: MiniOS (mod)
+    patterns:
+      - '(?i)^MiniOS.*\.iso$'
+      - '(?i)^WinXP MiniOS.*\.iso$'
+      - '(?i)^WinSrv03-MiniOS.*\.iso$'
+      - '(?i)^.*MiniOS.*\.iso$'
+    managed_by: manual
+    page: https://minios.dev/
+    resolver: none
+    note: "Imágenes modificadas de terceros. Verificar manualmente en el sitio del autor."
+
+  - id: windows-xp
+    label: Windows XP
+    patterns:
+      - '(?i)^WinXpSp3.*\.iso$'
+      - '(?i)^xp_pro\.iso$'
+      - '(?i)^WinXP(?! MiniOS).*\.iso$'
+    managed_by: manual
+    page: https://www.microsoft.com/
+    resolver: none
+    note: "EOL histórico. Solo inventario."
+
+  - id: windows-server
+    label: Windows Server
+    patterns:
+      - '(?i)^.*windows_server.*\.iso$'
+      - '(?i)^us_win_server_.*\.iso$'
+      - '(?i)^en-us_windows_server.*\.iso$'
+      - '(?i)^WinSrv(?!03-MiniOS).*\.iso$'
+    managed_by: manual
+    page: https://www.microsoft.com/en-us/evalcenter
+    resolver: none
+    note: "Eval Center / VLSC. Sin auto-download."
+
+  - id: zorin
+    label: Zorin OS
+    patterns:
+      - '(?i)^Zorin-OS-(\d+)(?:-Core)?-64-bit(?:-r(\d+))?\.iso$'
+      - '(?i)^Zorin-OS-.*\.iso$'
+    managed_by: catalog
+    page: https://zorin.com/os/download/
+    resolver: zorin
+
+  - id: pearos
+    label: pearOS
+    patterns:
+      - '(?i)^pearOS-.*-(\d{4}\.\d+)-x86_64\.iso$'
+      - '(?i)^pearOS-.*\.iso$'
+    managed_by: catalog
+    page: https://pearos.xyz/
+    resolver: none
+    note: "Proyecto comunitario; comprobar página / Discord del autor."
+
+  - id: kaspersky-rescue
+    label: Kaspersky Rescue Disk
+    patterns:
+      - '(?i)^kaspersky.*rescue.*\.iso$'
+    managed_by: manual
+    page: https://support.kaspersky.com/krd
+    resolver: none
+    note: "Descarga desde el sitio de Kaspersky (requiere cuenta a veces)."
+
+  - id: strelec
+    label: Sergei Strelec WinPE
+    patterns:
+      - '(?i)^WinPE.*Strelec.*\.iso$'
+      - '(?i)^.*Strelec.*\.iso$'
+    managed_by: manual
+    page: https://sergeistrelec.name/
+    resolver: none
+    note: "Pack de terceros. Solo inventario."
+
+  - id: medicat
+    label: MediCat USB
+    patterns:
+      - '(?i)^MediCat.*'
+    managed_by: manual
+    page: https://medicatusb.com/
+    resolver: none
+    note: "Suite grande; no escanear en profundidad salvo --deep. Actualizar desde el proyecto oficial."

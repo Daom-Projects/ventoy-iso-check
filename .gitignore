@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.venv/
+.python-version
+
+# Tool output
+links.md
+*.log
+.env
+.DS_Store
+
+# Editors / IDE
+.idea/
+.vscode/
+*.swp
+
+# Local overrides
+sisou.local.toml

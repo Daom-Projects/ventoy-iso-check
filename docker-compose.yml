@@ -1,0 +1,23 @@
+# Uso multiplataforma: monta la partición Ventoy en /ventoy
+#
+# Linux:   VENTOY_HOST=/media/$USER/Ventoy docker compose run --rm vic check
+# WSL:     VENTOY_HOST=/mnt/e docker compose run --rm vic check
+# macOS:   VENTOY_HOST=/Volumes/Ventoy docker compose run --rm vic check
+# Windows (Docker Desktop): VENTOY_HOST=E:\ docker compose run --rm vic check
+#
+# También: docker compose run --rm vic links -o /ventoy/links.md
+
+services:
+  vic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ventoy-iso-check:local
+    environment:
+      VENTOY_ROOT: /ventoy
+    volumes:
+      # Host path → /ventoy (lectura/escritura para download)
+      - ${VENTOY_HOST:-/mnt/e}:/ventoy
+    # Red necesaria para check/links/download
+    network_mode: bridge
+    working_dir: /app

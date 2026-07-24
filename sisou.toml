@@ -1,0 +1,98 @@
+# Configuración SuperISOUpdater (sisou) alineada al layout típico:
+#   Linux/  Herramientas/  Windows/11/  (+ Proxmox en Herramientas/)
+#
+# `directory` se reescribe en runtime por ventoy-iso-check download
+# según la raíz Ventoy real ($VENTOY_ROOT, /ventoy, /mnt/e, …).
+# El valor de abajo es solo plantilla/default para Docker.
+
+directory = "/ventoy"
+
+# ── Herramientas de rescate ──────────────────────────────────────────
+
+[Herramientas]
+enabled = true
+directory = "Herramientas"
+
+[Herramientas.Clonezilla]
+enabled = true
+archs = ["amd64"]
+name = "clonezilla-live-[[VER]]-[[ARCH]]"
+
+[Herramientas.SystemRescue]
+enabled = true
+archs = ["amd64"]
+name = "systemrescue-[[VER]]-[[ARCH]]"
+
+# Rescuezilla: SISOU solo acepta editions noble | resolute (no plucky).
+# Si tienes *.plucky.iso, renómbrala o deja que sisou baje resolute/noble.
+[Herramientas.Rescuezilla]
+enabled = true
+editions = ["resolute"]
+archs = ["64bit"]
+name = "rescuezilla-[[VER]]-[[ARCH]].[[EDITION]]"
+
+[Herramientas.HirensBootCDPE]
+enabled = true
+archs = ["x64"]
+name = "HBCD_PE_[[VER]]_[[ARCH]]"
+
+# ── Linux ────────────────────────────────────────────────────────────
+
+[Linux]
+enabled = true
+directory = "Linux"
+
+[Linux.Ubuntu]
+enabled = true
+editions = ["desktop", "live-server"]
+archs = ["amd64"]
+name = "ubuntu-[[VER]]-[[EDITION]]-[[ARCH]]"
+
+[Linux.LinuxMint]
+enabled = true
+editions = ["cinnamon"]
+name = "linuxmint-[[VER]]-[[EDITION]]-64bit"
+
+# Fedora: el nombre remoto de SISOU usa Live-[[VER]].[[ARCH]]
+# Silverblue local puede llamarse Fedora-Silverblue-ostree-...; puede requerir
+# renombre o limpieza manual tras la primera descarga.
+[Linux.Fedora]
+enabled = true
+editions = ["Workstation", "Silverblue"]
+archs = ["x86_64"]
+name = "Fedora-[[EDITION]]-Live-[[VER]].[[ARCH]]"
+
+[Linux.KaliLinux]
+enabled = true
+editions = ["installer"]
+archs = ["amd64"]
+name = "kali-linux-[[VER]]-[[EDITION]]-[[ARCH]]"
+
+[Linux.CachyOS]
+enabled = true
+editions = ["desktop"]
+name = "cachyos-[[EDITION]]-linux-[[VER]]"
+
+[Linux.Tails]
+enabled = true
+archs = ["amd64"]
+name = "tails-[[ARCH]]-[[VER]]"
+
+# ── Proxmox (en Herramientas/ en este disco) ─────────────────────────
+
+[Herramientas.Proxmox]
+enabled = true
+editions = ["ve"]
+name = "proxmox-[[EDITION]]_[[VER]]"
+
+# ── Windows 11 (solo oficial consumer) ───────────────────────────────
+
+[Windows]
+enabled = true
+directory = "Windows/11"
+
+[Windows.Windows11]
+enabled = true
+langs = ["Spanish (Mexico)"]
+archs = ["x64"]
+name = "Win11_[[VER]]_[[LANG]]_[[ARCH]]"
