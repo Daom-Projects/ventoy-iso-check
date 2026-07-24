@@ -325,33 +325,109 @@ def resolve_popos(entry: CatalogEntry, local_version: str | None) -> ResolveResu
 
 
 def resolve_linuxmint(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Always target the newest Mint stable; note if local major is only point-behind."""
     edition = entry.edition or "cinnamon"
     try:
         with _client() as client:
-            # Directory listing of stable releases
             r = client.get("https://mirrors.kernel.org/linuxmint/stable/")
             r.raise_for_status()
             versions = _find_versions(r.text, r'href="(\d+(?:\.\d+)?)/"')
             latest = _best_version(versions)
             if not latest:
                 return ResolveResult(error="No Mint versions", page=entry.page)
+
+            note = None
             if local_version:
                 major = local_version.split(".")[0]
-                same = [v for v in versions if v == major or v.startswith(major + ".")]
-                if same:
-                    latest = _best_version(same) or latest
+                same = [
+                    v for v in versions if v == major or v.startswith(major + ".")
+                ]
+                series_best = _best_version(same)
+                if series_best and series_best != latest:
+                    note = (
+                        f"Serie local al día en {series_best}; "
+                        f"release más nueva: {latest}"
+                    )
+
             fname = f"linuxmint-{latest}-{edition}-64bit.iso"
             url = f"https://mirrors.kernel.org/linuxmint/stable/{latest}/{fname}"
             return ResolveResult(
                 latest_version=latest,
                 download_url=url,
                 page=entry.page,
+                note=note,
             )
     except Exception as e:
         return ResolveResult(error=str(e), page=entry.page)
 
 
+def _fedora_list_iso(
+    client: httpx.Client,
+    release: str,
+    edition: str,
+    arch: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Return (version_token, download_url, error_note)."""
+    if edition == "Silverblue":
+        base = (
+            f"https://dl.fedoraproject.org/pub/fedora/linux/releases/"
+            f"{release}/Silverblue/{arch}/iso/"
+        )
+        sub = "Silverblue"
+    else:
+        base = (
+            f"https://dl.fedoraproject.org/pub/fedora/linux/releases/"
+            f"{release}/Workstation/{arch}/iso/"
+        )
+        sub = "Workstation"
+
+    r2 = client.get(base)
+    if r2.status_code >= 400:
+        return None, None, f"No se pudo listar ISO {sub} en release {release}"
+
+    if edition == "Silverblue":
+        files = re.findall(
+            r'href="(Fedora-Silverblue[^"]+\.iso)"',
+            r2.text,
+            flags=re.I,
+        )
+    else:
+        files = re.findall(
+            r'href="(Fedora-Workstation-Live[^"]+\.iso)"',
+            r2.text,
+            flags=re.I,
+        )
+    if not files:
+        return None, None, f"Sin ISO {sub} en release {release}"
+
+    fname = files[0]
+    if edition == "Silverblue":
+        m = re.search(
+            r"(?:x86_64|aarch64)-(\d+-\d+(?:\.\d+)?)(?:\.iso)?$",
+            fname,
+            flags=re.I,
+        )
+        if not m:
+            m = re.search(r"-(\d+-\d+(?:\.\d+)?)\.iso$", fname)
+    else:
+        m = re.search(
+            r"Fedora-Workstation-Live-(?:x86_64-)?(\d+(?:-\d+(?:\.\d+)?)?)",
+            fname,
+            flags=re.I,
+        )
+        if not m:
+            m = re.search(
+                r"-(\d+-\d+(?:\.\d+)?)\.x86_64\.iso$", fname, flags=re.I
+            )
+    ver = m.group(1) if m else release
+    return ver, base + fname, None
+
+
 def resolve_fedora(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Always target the newest Fedora release with a published ISO.
+
+    Previously pinned to the local major (e.g. 43) even when 44 existed.
+    """
     edition = entry.edition or "Workstation"
     arch = entry.arch or "x86_64"
     try:
@@ -360,85 +436,53 @@ def resolve_fedora(entry: CatalogEntry, local_version: str | None) -> ResolveRes
                 "https://dl.fedoraproject.org/pub/fedora/linux/releases/"
             )
             r.raise_for_status()
-            # numeric release dirs only
-            releases = [
-                v
-                for v in _find_versions(r.text, r'href="(\d+)/"')
-                if v.isdigit() and int(v) >= 30
-            ]
-            latest_rel = max(releases, key=int) if releases else None
-            if not latest_rel:
+            releases = sorted(
+                {
+                    int(v)
+                    for v in _find_versions(r.text, r'href="(\d+)/"')
+                    if v.isdigit() and int(v) >= 30
+                },
+                reverse=True,
+            )
+            if not releases:
                 return ResolveResult(error="No Fedora releases", page=entry.page)
 
-            # Prefer matching major of local if still listed
-            if local_version:
-                major = local_version.split("-")[0].split(".")[0]
-                if major in releases:
-                    latest_rel = major
+            # Walk newest → older until we find a published Workstation/Silverblue ISO
+            # (brand-new dirs can exist before ISOs are uploaded).
+            ver = url = err = None
+            chosen_rel = None
+            for rel in releases[:6]:  # don't walk forever
+                ver, url, err = _fedora_list_iso(client, str(rel), edition, arch)
+                if ver and url:
+                    chosen_rel = str(rel)
+                    break
 
-            if edition == "Silverblue":
-                base = (
-                    f"https://dl.fedoraproject.org/pub/fedora/linux/releases/"
-                    f"{latest_rel}/Silverblue/{arch}/iso/"
+            if not ver or not url:
+                return ResolveResult(
+                    latest_version=str(releases[0]),
+                    page=entry.page,
+                    note=err or "No ISO publicada en las releases recientes",
                 )
-                r2 = client.get(base)
-                if r2.status_code >= 400:
-                    return ResolveResult(
-                        latest_version=latest_rel,
-                        page=entry.page,
-                        note="No se pudo listar ISO Silverblue",
+
+            note = None
+            if local_version:
+                local_major = local_version.split("-")[0].split(".")[0]
+                if local_major.isdigit() and chosen_rel and int(local_major) < int(
+                    chosen_rel
+                ):
+                    note = (
+                        f"Release local {local_major}; "
+                        f"Fedora más nueva con ISO: {chosen_rel}"
                     )
-                files = re.findall(
-                    r'href="(Fedora-Silverblue[^"]+\.iso)"',
-                    r2.text,
-                    flags=re.I,
-                )
-                if files:
-                    fname = files[0]
-                    # Prefer ...-43-1.6.iso or ...-x86_64-43-1.6.iso (avoid matching x86)
-                    m = re.search(
-                        r"(?:x86_64|aarch64)-(\d+-\d+(?:\.\d+)?)(?:\.iso)?$",
-                        fname,
-                        flags=re.I,
-                    )
-                    if not m:
-                        m = re.search(r"-(\d+-\d+(?:\.\d+)?)\.iso$", fname)
-                    ver = m.group(1) if m else f"{latest_rel}"
-                    return ResolveResult(
-                        latest_version=ver,
-                        download_url=base + fname,
-                        page=entry.page,
-                    )
-            else:
-                base = (
-                    f"https://dl.fedoraproject.org/pub/fedora/linux/releases/"
-                    f"{latest_rel}/Workstation/{arch}/iso/"
-                )
-                r2 = client.get(base)
-                r2.raise_for_status()
-                files = re.findall(
-                    r'href="(Fedora-Workstation-Live[^"]+\.iso)"',
-                    r2.text,
-                    flags=re.I,
-                )
-                if files:
-                    fname = files[0]
-                    m = re.search(
-                        r"Fedora-Workstation-Live-(?:x86_64-)?(\d+(?:-\d+(?:\.\d+)?)?)",
-                        fname,
-                        flags=re.I,
-                    )
-                    if not m:
-                        m = re.search(
-                            r"-(\d+-\d+(?:\.\d+)?)\.x86_64\.iso$", fname, flags=re.I
-                        )
-                    ver = m.group(1) if m else latest_rel
-                    return ResolveResult(
-                        latest_version=ver,
-                        download_url=base + fname,
-                        page=entry.page,
-                    )
-            return ResolveResult(latest_version=latest_rel, page=entry.page)
+                elif local_major == chosen_rel and local_version != ver:
+                    note = f"Mismo major {chosen_rel}; compose ISO: {ver}"
+
+            return ResolveResult(
+                latest_version=ver,
+                download_url=url,
+                page=entry.page,
+                note=note,
+            )
 
     except Exception as e:
         return ResolveResult(error=str(e), page=entry.page)
