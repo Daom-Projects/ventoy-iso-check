@@ -108,11 +108,22 @@ Historial de bugs: resolvers **anclados a la serie local** daban falsos `OK`
 
 ## Inventario típico del autor (orientativo)
 
-Cambia con el tiempo; no hardcodear versiones en código. Última revisión de diseño: 2026-07.
+Cambia con el tiempo; **no hardcodear versiones en código**. Última revisión de diseño: 2026-07.
 
 - Linux: Ubuntu desktop/server, Budgie, Mint, Fedora WS/SB, Kali, CachyOS, Tails, Pop!_OS, Zorin, pearOS.
 - Tools: Clonezilla, SystemRescue, Rescuezilla, HBCD, Proxmox, Strelec, Kaspersky.
 - Windows: 11 ES-MX (sisou), 10/7/8.1/XP/Server/MiniOS (manual).
+
+## Documentación del repo (mapa)
+
+| Doc | Rol |
+|-----|-----|
+| `README.md` | Usuario final |
+| `CHANGELOG.md` | Releases |
+| `CONTRIBUTING.md` | Contribuciones |
+| `AGENTS.md` / `CLAUDE.md` | Agentes |
+| `docs/PHASED_PLAN.md` | Roadmap ejecutable (fase actual: **1**) |
+| `docs/ARCHITECTURE.md` | Módulos y flujos |
 
 ## Referencias
 

@@ -1,53 +1,85 @@
 # ventoy-iso-check
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
+[![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](./CHANGELOG.md)
 
-Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).  
-Enfoque **híbrido**:
+Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
-1. **`ventoy-iso-check`** — escanea el árbol, parsea versiones del nombre de archivo, consulta fuentes oficiales y genera informe + enlaces.
-2. **[SuperISOUpdater (sisou)](https://github.com/JoshuaVandaele/SuperISOUpdater)** — descarga y verifica checksums de las distros soportadas (`sisou.toml`).
+**Enfoque híbrido:**
+
+1. **`ventoy-iso-check`** — escanea el árbol, parsea versiones, consulta fuentes oficiales, muestra **fecha/edad del archivo en disco** y genera informe + enlaces.
+2. **[SuperISOUpdater (sisou)](https://github.com/JoshuaVandaele/SuperISOUpdater)** — descarga y verifica checksums de distros soportadas (`sisou.toml`).
 
 > Por defecto **no descarga nada**.
 
-Repositorio: [github.com/Daom-Projects/ventoy-iso-check](https://github.com/Daom-Projects/ventoy-iso-check)
+| | |
+|--|--|
+| **Repositorio** | [github.com/Daom-Projects/ventoy-iso-check](https://github.com/Daom-Projects/ventoy-iso-check) |
+| **Organización** | [Daom-Projects](https://github.com/Daom-Projects) |
+| **Changelog** | [CHANGELOG.md](./CHANGELOG.md) |
+| **Contribuir** | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 
 ### Documentación para agentes y roadmap
 
 | Documento | Contenido |
 |-----------|-----------|
 | [AGENTS.md](./AGENTS.md) | Instrucciones para agentes de código |
-| [docs/CONTEXT.md](./docs/CONTEXT.md) | Contexto de dominio (Ventoy, WSL, políticas) |
+| [CLAUDE.md](./CLAUDE.md) | Puntero Claude Code |
+| [docs/CONTEXT.md](./docs/CONTEXT.md) | Dominio Ventoy / WSL / políticas |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Arquitectura de módulos |
 | [docs/PHASED_PLAN.md](./docs/PHASED_PLAN.md) | **Plan de mejoras por fases** (ejecutable) |
+| [docs/README.md](./docs/README.md) | Índice de docs internas |
+
+---
+
+## Características (v0.3.0)
+
+- Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
+- Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
+- **File date** + **Age** del archivo en el volumen (mtime; birthtime si el FS lo expone).
+- Generación de **enlaces** (Markdown) y export **JSON**.
+- Descarga opcional vía **sisou** (Python 3.12 / Docker).
+- Portable: **Docker**, **uv**, variables `$VENTOY_ROOT` / `$VENTOY_HOST`.
+- Catálogo editable (`catalog.yaml`) + plantilla `sisou.toml`.
+
+### Estados
+
+| Status | Significado |
+|--------|-------------|
+| `OK` | Local al día respecto al latest conocido |
+| `OUTDATED` | Hay versión más nueva |
+| `UNKNOWN` | En catálogo, sin latest fiable / offline |
+| `MANUAL` | Terceros o EOL (solo inventario) |
+| `UNSUPPORTED` | Detectada, sin entrada en catálogo |
+| `ERROR` | Fallo de red o del resolver |
 
 ---
 
 ## ¿Se puede ejecutar desde el mismo disco en Linux, macOS y Windows?
 
-**Sí, con matices.** La forma más portable y recomendada es **Docker**: el mismo comando monta la partición Ventoy en `/ventoy` y el contenedor es idéntico en los tres SO.
+**Sí, con matices.** La forma más portable es **Docker**: monta la partición Ventoy en `/ventoy`.
 
 | Método | Linux | macOS | Windows | Notas |
 |--------|:-----:|:-----:|:-------:|-------|
-| **Docker** (recomendado) | ✅ | ✅ | ✅ (Docker Desktop) | Monta la partición en `/ventoy` |
-| **uv / Python nativo** | ✅ | ✅ | ✅ (WSL2 o Python nativo) | Ideal en WSL o Linux |
-| **Código en el USB** | ✅ | ✅ | ✅ | Copia el repo a `tools/ventoy-iso-check/` y monta/ejecuta |
-| **sisou download** | ✅ | ⚠️ | ✅ | En host requiere Python 3.12 + uv; en Docker va embebido si el build lo instaló |
+| **Docker** | ✅ | ✅ | ✅ (Docker Desktop) | Monta en `/ventoy` |
+| **uv / Python** | ✅ | ✅ | ✅ (WSL2 o nativo) | Ideal en WSL |
+| **Código en el USB** | ✅ | ✅ | ✅ | p. ej. `tools/ventoy-iso-check/` |
+| **sisou download** | ✅ | ⚠️ | ✅ | Host: Python 3.12 + uv |
 
 ### Convención de rutas
 
 | Contexto | Raíz Ventoy |
 |----------|-------------|
-| Variable de entorno | `$VENTOY_ROOT` o `$VENTOY_HOST` (compose) |
-| Dentro de Docker | `/ventoy` |
-| WSL (letra E:) | `/mnt/e` |
-| Linux típico | `/media/$USER/Ventoy` o `/run/media/$USER/Ventoy` |
-| macOS | `/Volumes/Ventoy` (nombre del volumen) |
-| Windows nativo | `E:\` (Docker Desktop) o WSL `/mnt/e` |
+| Variable | `$VENTOY_ROOT` o `$VENTOY_HOST` (compose) |
+| Docker | `/ventoy` |
+| WSL (`E:`) | `/mnt/e` |
+| Linux | `/media/$USER/Ventoy`, `/run/media/$USER/Ventoy` |
+| macOS | `/Volumes/Ventoy` |
+| Windows | `E:\` (Docker Desktop) |
 
-La CLI resuelve la raíz en este orden: **`$VENTOY_ROOT` → `/ventoy` (si existe) → `/mnt/e` (si existe) → cwd**.
-
-Puedes llevar el código **en el propio USB**:
+Orden de resolución en CLI: **`$VENTOY_ROOT` → `/ventoy` → `/mnt/e` → cwd**.
 
 ```text
 E:\  (o /ventoy)
@@ -55,58 +87,39 @@ E:\  (o /ventoy)
 ├── Herramientas/
 ├── Windows/
 └── tools/
-    └── ventoy-iso-check/    ← este repo (git clone / copia)
+    └── ventoy-iso-check/    ← opcional: copia de este repo
 ```
 
-Eso no hace el USB “arrancable con la tool”: Ventoy sigue sirviendo ISOs al boot. La tool se ejecuta **desde un SO anfitrión** (o Docker) con el volumen montado.
+Ventoy sigue sirviendo ISOs al boot; la tool se ejecuta desde el **SO anfitrión** o un contenedor.
 
 ---
 
 ## Inicio rápido con Docker
 
-### Requisitos
-
-- [Docker](https://docs.docker.com/get-docker/) (o Docker Desktop en Windows/macOS)
-- Partición Ventoy montada y visible en el host
-
-### Build
-
 ```bash
 git clone https://github.com/Daom-Projects/ventoy-iso-check.git
 cd ventoy-iso-check
 docker build -t ventoy-iso-check:local .
-```
 
-### Ejecutar
-
-```bash
-# Linux / WSL — ajusta la ruta del host
+# WSL / Linux
 docker run --rm -v /mnt/e:/ventoy ventoy-iso-check:local scan
 docker run --rm -v /mnt/e:/ventoy ventoy-iso-check:local check --urls
-docker run --rm -v /mnt/e:/ventoy ventoy-iso-check:local links -o /ventoy/links.md
 
 # macOS
 docker run --rm -v /Volumes/Ventoy:/ventoy ventoy-iso-check:local check
 
-# Windows (PowerShell / Docker Desktop) — letra de unidad del Ventoy
+# Windows (Docker Desktop)
 docker run --rm -v E:\:/ventoy ventoy-iso-check:local check
 ```
 
 ### docker compose
 
 ```bash
-# Define la ruta del host
-export VENTOY_HOST=/mnt/e          # WSL/Linux
-# export VENTOY_HOST=/Volumes/Ventoy
-# set VENTOY_HOST=E:\              # Windows
-
+export VENTOY_HOST=/mnt/e   # o /Volumes/Ventoy  o  E:\
 docker compose run --rm vic scan
-docker compose run --rm vic check --urls
-docker compose run --rm vic links -o /ventoy/links.md
+docker compose run --rm vic check --urls --sort age
 docker compose run --rm vic download --dry-run
 ```
-
-Script helper:
 
 ```bash
 VENTOY_HOST=/mnt/e ./scripts/run-docker.sh check --only ubuntu,kali
@@ -114,43 +127,30 @@ VENTOY_HOST=/mnt/e ./scripts/run-docker.sh check --only ubuntu,kali
 
 ---
 
-## Inicio rápido con uv (sin Docker)
+## Inicio rápido con uv
 
-### Requisitos
-
-- Python 3.12+
-- [`uv`](https://docs.astral.sh/uv/)
+Requisitos: **Python 3.12+**, [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/Daom-Projects/ventoy-iso-check.git
 cd ventoy-iso-check
 uv sync
 
-export VENTOY_ROOT=/mnt/e   # o la ruta de tu SO
+export VENTOY_ROOT=/mnt/e
 uv run ventoy-iso-check scan
-uv run ventoy-iso-check check --urls
+uv run ventoy-iso-check check --urls --sort age
 uv run ventoy-iso-check links -o links.md
 uv run ventoy-iso-check download --dry-run
-```
-
-También puedes pasar la ruta como argumento:
-
-```bash
-uv run ventoy-iso-check check /mnt/e
-uv run ventoy-iso-check check /Volumes/Ventoy
 ```
 
 ### Descarga real (`download` / sisou)
 
 ```bash
-# Dry-run
 uv run ventoy-iso-check download /mnt/e --dry-run
-
-# Real (reescribe directory en sisou.toml al vuelo con la raíz que indiques)
 uv run ventoy-iso-check download /mnt/e
 ```
 
-En host sin imagen Docker, `download` usa:
+En host, internamente:
 
 ```bash
 uv tool run --python 3.12 sisou@latest <config-temporal>
@@ -164,35 +164,48 @@ Python **3.12** es necesario para wheels de `libtorrent` (dependencia de sisou).
 
 | Comando | Red | Efecto |
 |---------|-----|--------|
-| `scan [ROOT]` | No | Inventario local |
-| `check [ROOT]` | Sí | Compara con últimas versiones |
+| `scan [ROOT]` | No | Inventario local + fechas |
+| `check [ROOT]` | Sí | Compara con latest (sin descargar) |
 | `links [ROOT] -o FILE` | Sí | Markdown con URLs |
 | `download [ROOT]` | Sí | Actualiza vía sisou |
-| `--only a,b` | — | Filtra por id/nombre |
-| `--urls` | — | Columna URL en tabla |
-| `--deep` | — | Incluye árboles tipo MediCat |
-| `--offline` | — | check sin red |
-| `--dry-run` | — | download sin ejecutar |
-| `--sort path\|date\|age\|status` | — | Orden de la tabla |
-| `--stale-days N` | — | Resalta archivos con mtime ≥ N días (default 180; `0` = off) |
-| `--no-dates` | — | Oculta columnas File date / Age |
+
+| Flag | Efecto |
+|------|--------|
+| `--only a,b` | Filtro por id / etiqueta / nombre |
+| `--urls` | Columna URL/página |
+| `--deep` | Incluye árboles tipo MediCat |
+| `--offline` | `check` sin red |
+| `--dry-run` | `download` sin ejecutar |
+| `--json PATH` | Export JSON |
+| `--sort path\|date\|age\|status` | Orden de la tabla |
+| `--stale-days N` | Resalta mtime ≥ N días (default 180; `0` = off) |
+| `--no-dates` | Oculta File date / Age |
+| `-V` / `--version` | Versión del paquete |
+
+### Makefile
+
+```bash
+make scan VENTOY_HOST=/mnt/e
+make check VENTOY_HOST=/mnt/e
+make docker-build
+make docker-check VENTOY_HOST=/mnt/e
+```
 
 ### Fecha del archivo (copia / descarga)
 
-Cada fila muestra:
+| Columna | Significado |
+|---------|-------------|
+| **File date** | `mtime` (o birthtime) del ISO en el disco |
+| **Age** | Antigüedad: `3d`, `2.1mo`, `1.5y` |
 
-- **File date** — `mtime` del ISO en el disco (en la práctica: cuándo se copió o descargó al volumen). Si el FS expone `birthtime`, se usa como preferencia.
-- **Age** — antigüedad relativa (`3d`, `2.1mo`, `1.5y`). Colores: verde &lt; 30d, amarillo &lt; 180d, rojo ≥ 180d (o el umbral de `--stale-days`).
+Colores: verde &lt; 30d · amarillo &lt; 180d · rojo ≥ umbral (`--stale-days`).
 
 ```bash
-# Más antiguas primero
 uv run ventoy-iso-check scan /mnt/e --sort age
-
-# Solo “viejas” visualmente (mtime ≥ 90 días)
 uv run ventoy-iso-check scan /mnt/e --stale-days 90 --sort age
 ```
 
-> **Nota:** en copias entre discos, el SO a veces conserva el mtime original del archivo; no siempre es el instante exacto de la última descarga.
+> En copias entre discos el SO puede conservar el mtime original. No es la fecha de *release* de la distro. Mejora planificada: sidecar `.meta.json` (fase 4 del plan).
 
 ---
 
@@ -200,35 +213,46 @@ uv run ventoy-iso-check scan /mnt/e --stale-days 90 --sort age
 
 ```text
 /ventoy/   (o /mnt/e, E:\, …)
-  Linux/           # Ubuntu, Mint, Fedora, Kali, CachyOS, Tails, …
+  Linux/           # Ubuntu, Mint, Fedora, Kali, CachyOS, Tails, Pop!_OS, …
   Herramientas/    # Clonezilla, SystemRescue, Rescuezilla, HBCD, Proxmox, …
-  Windows/11/      # Win11_* (sisou, Spanish Mexico)
+  Windows/11/      # Win11_* (sisou; Spanish Mexico en plantilla)
   tools/           # opcional: copia de este proyecto
 ```
 
-Configura ediciones/idiomas en `sisou.toml`. El campo `directory` es plantilla: **`download` lo sustituye** por la raíz real en un TOML temporal.
+`sisou.toml`: ediciones/idiomas; `directory` es plantilla y **`download` lo reescribe** a la raíz real.
 
 ---
 
-## Qué cubre cada capa
+## Cobertura del catálogo
 
-| Origen | Acción |
-|--------|--------|
-| Ubuntu, Mint, Fedora, Kali, CachyOS, Tails, Proxmox, Clonezilla, SystemRescue, Rescuezilla, Hiren's, Win11 | `check` + `download` (sisou) |
-| Ubuntu Budgie, Zorin | `check` / `links` |
-| MiniOS, Strelec, MediCat, Kaspersky, Win legacy/Server | `MANUAL` (inventario + nota) |
+### Check + download (sisou / bien soportados)
+
+Ubuntu (desktop, live-server), Linux Mint, Fedora (Workstation, Silverblue), Kali, CachyOS, Tails, Proxmox VE, Clonezilla, SystemRescue, Rescuezilla, Hiren's BootCD PE, Windows 11 (vía sisou).
+
+### Check / links (catálogo propio)
+
+Pop!_OS, Ubuntu Budgie, Zorin (página; CDN con token).
+
+### Solo inventario (manual)
+
+MiniOS, Strelec, MediCat, Kaspersky Rescue, Windows 7/8.1/10/XP/Server, pearOS (página).
+
+Política de “latest”: se reporta la **última release publicada con ISO usable** (no se ancla a la major local). Ubuntu server/LTS apunta a la **última LTS** soportada. Ver [docs/CONTEXT.md](./docs/CONTEXT.md).
 
 ---
 
 ## Archivos del proyecto
 
-| Archivo | Rol |
-|---------|-----|
+| Ruta | Rol |
+|------|-----|
 | `src/ventoy_iso_check/` | CLI y lógica |
-| `catalog.yaml` | Patrones, resolvers, páginas oficiales |
-| `sisou.toml` | Config SuperISOUpdater (plantilla) |
-| `Dockerfile` / `docker-compose.yml` | Imagen portable |
+| `catalog.yaml` | Patrones, resolvers, páginas |
+| `sisou.toml` | Plantilla SuperISOUpdater |
+| `Dockerfile`, `docker-compose.yml` | Imagen portable |
 | `scripts/run-docker.sh` | Atajo Docker |
+| `docs/` | Contexto, arquitectura, plan por fases |
+| `AGENTS.md` | Instrucciones para agentes |
+| `CHANGELOG.md` | Historial de versiones |
 
 ---
 
@@ -237,40 +261,53 @@ Configura ediciones/idiomas en `sisou.toml`. El campo `directory` es plantilla: 
 ### WSL2 (Windows 11)
 
 - Montaje típico: `/mnt/e` (lento vía 9p).
-- Para ISOs grandes: descarga en el FS de Linux y mueve, o usa Docker Desktop montando `E:\`.
-- `uv` + Python 3.12 en WSL funciona bien para `scan`/`check`/`links`.
+- ISOs grandes: descargar en FS Linux y mover, o Docker Desktop con `E:\`.
+- `uv` + Python 3.12 recomendado para `scan`/`check`/`links`.
 
-### Linux
+### Linux / macOS / Windows
 
-- Monta el USB/exFAT/NTFS y exporta `VENTOY_ROOT`.
-- Docker o uv indistintamente.
-
-### macOS
-
-- El volumen suele aparecer en `/Volumes/<Nombre>`.
-- Docker Desktop requiere permitir el acceso al volumen en Settings → Resources → File sharing.
-
-### Windows (sin WSL)
-
-- Usa **Docker Desktop** y `-v E:\:/ventoy`.
-- Alternativa: Python nativo + `uv` (más fricción con rutas y sisou).
+- Exporta `VENTOY_ROOT` o usa Docker.
+- macOS: File sharing de Docker Desktop al volumen.
+- Windows sin WSL: Docker Desktop `-v E:\:/ventoy`.
 
 ### Espacio y seguridad
 
 - Revisa GB libres antes de `download`.
 - MediCat y árboles enormes se omiten salvo `--deep`.
-- Ventoy (bootloader) se actualiza **aparte**; no lo gestiona esta tool.
+- Bootloader Ventoy se actualiza **aparte**.
 - Packs de terceros (MiniOS, Strelec) no se auto-actualizan.
 
 ---
 
 ## Limitaciones
 
-- Los resolvers hacen scraping/listados de mirrors; pueden fallar si cambia el HTML.
-- SISOU identifica ISOs por el patrón `name` (`[[VER]]`, …). Nombres no canónicos pueden requerir renombre o limpieza manual.
+- Resolvers por scraping/listados de mirrors (HTML puede cambiar).
+- SISOU identifica ISOs por plantilla `name` (`[[VER]]`, …); nombres no canónicos pueden requerir renombre.
 - Rescuezilla en SISOU: ediciones `noble` / `resolute` (no `plucky`).
-- Windows 7/8/10/XP/Server y builds modificados: sin auto-update fiable.
-- La imagen Docker intenta instalar `sisou`; si falla el build de dependencias nativas, `scan`/`check`/`links` siguen disponibles y `download` puede hacerse en el host con uv.
+- Windows legacy / builds modificados: sin auto-update fiable.
+- Si `sisou` no entra en la imagen Docker, `scan`/`check`/`links` siguen OK; `download` en host con uv.
+
+---
+
+## Roadmap
+
+El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs/PHASED_PLAN.md).
+
+| Fase | Tema | Estado |
+|------|------|--------|
+| 0 | Baseline + docs agentes | done |
+| 1 | `--only-outdated` / `--only-stale` | pending |
+| 2 | Espacio libre pre-download | pending |
+| 3 | Cache de latest (TTL) | pending |
+| 4 | Sidecar metadata + checksum | pending |
+| 5–9 | Multi-LTS, catálogo, tests, export, CI | pending |
+
+Prompt para un agente:
+
+```text
+Lee AGENTS.md y docs/PHASED_PLAN.md. Ejecuta la siguiente fase pending.
+No descargues ISOs reales. Verifica con uv. Commit, push y actualiza el plan.
+```
 
 ---
 
@@ -279,8 +316,11 @@ Configura ediciones/idiomas en `sisou.toml`. El campo `directory` es plantilla: 
 ```bash
 uv sync
 uv run ventoy-iso-check --help
+uv run ventoy-iso-check -V
 docker build -t ventoy-iso-check:local .
 ```
+
+Ver también [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ---
 

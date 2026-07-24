@@ -5,7 +5,9 @@ status: active
 last_updated: 2026-07-24
 current_phase: 1
 version_baseline: "0.3.0"
+docs_commit: "docs refresh (CHANGELOG, CONTRIBUTING, README)"
 ---
+
 
 # Plan de mejoras por fases
 
@@ -43,11 +45,15 @@ Al completar una fase:
 
 - CLI scan/check/links/download
 - catalog.yaml + resolvers (Ubuntu LTS-aware, Fedora latest major, Pop!_OS, …)
-- sisou bridge + Docker
-- File date / Age (`mtime`)
-- AGENTS.md, docs/*
+- sisou bridge + Docker multiplataforma
+- File date / Age (`mtime`) + `--sort` / `--stale-days`
+- Docs agentes: `AGENTS.md`, `CLAUDE.md`, `docs/*`, Copilot instructions
+- `CHANGELOG.md`, `CONTRIBUTING.md`
+
+**Commits de referencia:** `51631e0` (0.1 portable) → `0ca3b37` (0.3 fechas) → docs agentes `f2d4910`+
 
 **Verificación:** `uv run ventoy-iso-check scan $VENTOY_ROOT --sort age`
+
 
 ---
 
@@ -325,6 +331,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 
 | Fase | completed_at | commit | Notas |
 |------|--------------|--------|-------|
-| 0 | 2026-07-24 | (baseline 0.3.0 + docs agentes) | Incluye fechas mtime, Docker, LTS fixes |
+| 0 | 2026-07-24 | `0ca3b37` / `f2d4910` | Baseline 0.3.0: fechas mtime, Docker, LTS/Fedora fixes, docs agentes |
 
-<!-- Los agentes añaden filas aquí -->
+<!-- Los agentes añaden filas aquí al completar fases -->

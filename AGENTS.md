@@ -96,7 +96,15 @@ docs/
 | Archivo | Uso |
 |---------|-----|
 | [docs/CONTEXT.md](docs/CONTEXT.md) | Contexto de dominio y decisiones |
-| [docs/PHASED_PLAN.md](docs/PHASED_PLAN.md) | **Plan ejecutable por fases** |
+| [docs/PHASED_PLAN.md](docs/PHASED_PLAN.md) | **Plan ejecutable por fases** (siguiente: Fase 1) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Flujos y módulos |
+| [docs/README.md](docs/README.md) | Índice de docs internas |
 | [README.md](README.md) | Usuario final |
+| [CHANGELOG.md](CHANGELOG.md) | Historial de versiones |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Cómo contribuir |
 | [CLAUDE.md](CLAUDE.md) | Puntero para Claude Code |
+
+## Versión actual
+
+- Paquete: **0.3.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Fase del plan activa: **1** (`--only-outdated` / `--only-stale`)
