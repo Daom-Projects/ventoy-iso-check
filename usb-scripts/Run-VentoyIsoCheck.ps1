@@ -34,7 +34,8 @@ param(
 )
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
+# Continue: uv escribe progreso a stderr y con "Stop" PowerShell lo trata como error fatal
+$ErrorActionPreference = "Continue"
 
 function Write-Info([string]$msg) { Write-Host "[ventoy-iso-check] $msg" -ForegroundColor Cyan }
 function Write-Warn([string]$msg) { Write-Host "[ventoy-iso-check] $msg" -ForegroundColor Yellow }
@@ -195,30 +196,39 @@ function Invoke-NativeEngine {
 
     Push-Location $WinRepo
     try {
-        Write-Info "uv sync en $WinRepo ..."
-        & uv sync
-        if ($LASTEXITCODE -ne 0) {
-            Write-Err "uv sync fallo (codigo $LASTEXITCODE)"
-            return $LASTEXITCODE
+        # git pull por si el clon es viejo
+        if (Test-Path (Join-Path $WinRepo ".git")) {
+            Write-Info "git pull en $WinRepo ..."
+            $null = & git -C $WinRepo pull --ff-only 2>&1
         }
 
-        # git pull por si el clon es viejo (menu TTY fix)
-        if (Test-Path (Join-Path $WinRepo ".git")) {
-            git -C $WinRepo pull --ff-only 2>$null | Out-Null
-            & uv sync 2>$null | Out-Null
+        Write-Info "uv sync en $WinRepo ..."
+        # uv imprime a stderr; no redirigir de forma que rompa con $ErrorActionPreference
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = "SilentlyContinue"
+        try {
+            & uv sync
+            $syncCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $prevEap
+        }
+        if ($syncCode -ne 0) {
+            Write-Err "uv sync fallo (codigo $syncCode)"
+            return $syncCode
         }
 
         Write-Info "VENTOY_ROOT=$env:VENTOY_ROOT"
         Write-Info "VENTOY_ISO_CHECK_INTERACTIVE=$env:VENTOY_ISO_CHECK_INTERACTIVE"
         Write-Info "uv run ventoy-iso-check $($AppArgs -join ' ')"
 
-        # Lanzar con cmd para heredar consola real en Windows
-        $argLine = ($AppArgs | ForEach-Object {
-            if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
-        }) -join ' '
-        $cmd = "uv run ventoy-iso-check $argLine"
-        cmd /c $cmd
-        return $LASTEXITCODE
+        # Lanzar proceso hijo heredando la consola (evita falsos "no TTY")
+        $ErrorActionPreference = "SilentlyContinue"
+        try {
+            & uv run ventoy-iso-check @AppArgs
+            return $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $prevEap
+        }
     } finally {
         Pop-Location
     }
