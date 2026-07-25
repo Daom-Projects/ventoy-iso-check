@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from ventoy_iso_check.cache import ResolveCache, cache_key
 from ventoy_iso_check.catalog import load_catalog, match_entry
 from ventoy_iso_check.inventory import scan_isos
 from ventoy_iso_check.models import CatalogEntry, IsoItem, Status
@@ -19,6 +20,7 @@ def run_check(
     deep: bool = False,
     online: bool = True,
     only: set[str] | None = None,
+    cache: ResolveCache | None = None,
 ) -> list[IsoItem]:
     entries, defaults = load_catalog(catalog_path)
     skip = set(defaults.get("skip_dir_names") or [])
@@ -44,6 +46,7 @@ def run_check(
 
     # index entries by id for resolve
     by_id = {e.id: e for e in entries}
+    dirty = False
 
     for item in items:
         if item.managed_by == "manual":
@@ -67,7 +70,13 @@ def run_check(
             item.note = item.note or "Usar sisou para comprobar/actualizar esta ISO"
             continue
 
-        result = resolve(entry, item.local_version)
+        key = cache_key(entry, item.local_version)
+        result = cache.get(key) if cache else None
+        if result is None:
+            result = resolve(entry, item.local_version)
+            if cache is not None:
+                cache.set(key, result)
+                dirty = True
         if result.error:
             log.warning("%s: %s", item.filename, result.error)
             item.status = Status.ERROR
@@ -90,6 +99,9 @@ def run_check(
             item.status = Status.OK
         else:
             item.status = Status.UNKNOWN
+
+    if cache is not None and dirty:
+        cache.save()
 
     return items
 

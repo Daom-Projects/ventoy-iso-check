@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.5.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-green.svg)](./CHANGELOG.md)
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
@@ -34,13 +34,14 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.5.0)
+## Características (v0.6.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
 - **File date** + **Age** del archivo en el volumen (mtime; birthtime si el FS lo expone).
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
+- **Cache de latest** (TTL 12 h, `~/.cache/ventoy-iso-check/`).
 - Generación de **enlaces** (Markdown) y export **JSON**.
 - Descarga opcional vía **sisou** (Python 3.12 / Docker).
 - Portable: **Docker**, **uv**, variables `$VENTOY_ROOT` / `$VENTOY_HOST`.
@@ -213,6 +214,10 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `--only-outdated` | Solo status OUTDATED |
 | `--only-stale` | Solo age ≥ `--stale-days` |
 | `--only-actionable` | OUTDATED + ERROR + stale |
+| `--no-cache` | No leer/escribir cache de latest |
+| `--refresh` | Forzar reconsulta de red (sí guarda cache) |
+| `--cache-dir DIR` | Ubicación del cache (default `~/.cache/ventoy-iso-check`) |
+| `--ttl-hours N` | TTL del cache (default 12) |
 | `--no-dates` | Oculta File date / Age |
 | `-V` / `--version` | Versión del paquete |
 
@@ -343,7 +348,7 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 0 | Baseline + docs agentes | done |
 | 1 | `--only-outdated` / `--only-stale` | **done** (v0.4.0) |
 | 2 | Espacio libre pre-download | **done** (v0.5.0) |
-| 3 | Cache de latest (TTL) | pending |
+| 3 | Cache de latest (TTL) | **done** (v0.6.0) |
 | 4 | Sidecar metadata + checksum | pending |
 | 5–9 | Multi-LTS, catálogo, tests, export, CI | pending |
 

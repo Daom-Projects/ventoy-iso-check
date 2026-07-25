@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 
 from ventoy_iso_check import __version__
+from ventoy_iso_check.cache import ResolveCache, default_cache_file
 from ventoy_iso_check.checker import run_check
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
 from ventoy_iso_check.filters import filter_items
@@ -53,6 +54,24 @@ def _display_opts(
         "stale_days": stale_days,
         "sort_by": sort_by,
     }
+
+
+def _build_cache(
+    *,
+    no_cache: bool,
+    refresh: bool,
+    cache_dir: Optional[Path],
+    ttl_hours: float,
+) -> ResolveCache | None:
+    if no_cache:
+        return None
+    path = default_cache_file(cache_dir) if cache_dir else default_cache_file()
+    return ResolveCache(
+        path=path,
+        ttl_hours=ttl_hours,
+        enabled=True,
+        refresh=refresh,
+    )
 
 
 @app.callback()
@@ -186,6 +205,24 @@ def check_cmd(
         "--only-actionable",
         help="Mostrar OUTDATED, ERROR y archivos stale.",
     ),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="No usar cache de latest (ni leer ni escribir)."
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "--refresh",
+        help="Ignorar cache al leer y volver a consultar la red (sí escribe).",
+    ),
+    cache_dir: Optional[Path] = typer.Option(
+        None,
+        "--cache-dir",
+        help="Directorio de cache (default: ~/.cache/ventoy-iso-check).",
+    ),
+    ttl_hours: float = typer.Option(
+        12.0,
+        "--ttl-hours",
+        help="TTL del cache de latest en horas (default 12).",
+    ),
     sort_by: str = typer.Option(
         "path",
         "--sort",
@@ -200,13 +237,24 @@ def check_cmd(
         console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
         raise typer.Exit(2)
     only_set = {s.strip() for s in only.split(",")} if only else None
+    cache = None
+    if not offline:
+        cache = _build_cache(
+            no_cache=no_cache,
+            refresh=refresh,
+            cache_dir=cache_dir,
+            ttl_hours=ttl_hours,
+        )
     items = run_check(
         ventoy,
         catalog_path=catalog,
         deep=deep,
         online=not offline,
         only=only_set,
+        cache=cache,
     )
+    if cache is not None:
+        console.print(f"[dim]{cache.stats_line()}[/dim]")
     sd = None if stale_days == 0 else stale_days
     items = filter_items(
         items,
@@ -248,6 +296,10 @@ def links_cmd(
     only_outdated: bool = typer.Option(False, "--only-outdated"),
     only_stale: bool = typer.Option(False, "--only-stale"),
     only_actionable: bool = typer.Option(False, "--only-actionable"),
+    no_cache: bool = typer.Option(False, "--no-cache"),
+    refresh: bool = typer.Option(False, "--refresh"),
+    cache_dir: Optional[Path] = typer.Option(None, "--cache-dir"),
+    ttl_hours: float = typer.Option(12.0, "--ttl-hours"),
     sort_by: str = typer.Option("path", "--sort"),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
@@ -258,9 +310,22 @@ def links_cmd(
         console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
         raise typer.Exit(2)
     only_set = {s.strip() for s in only.split(",")} if only else None
-    items = run_check(
-        ventoy, catalog_path=catalog, deep=deep, online=True, only=only_set
+    cache = _build_cache(
+        no_cache=no_cache,
+        refresh=refresh,
+        cache_dir=cache_dir,
+        ttl_hours=ttl_hours,
     )
+    items = run_check(
+        ventoy,
+        catalog_path=catalog,
+        deep=deep,
+        online=True,
+        only=only_set,
+        cache=cache,
+    )
+    if cache is not None:
+        console.print(f"[dim]{cache.stats_line()}[/dim]")
     sd = None if stale_days == 0 else stale_days
     items = filter_items(
         items,

@@ -3,8 +3,8 @@ title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
 last_updated: 2026-07-25
-current_phase: 3
-version_baseline: "0.5.0"
+current_phase: 4
+version_baseline: "0.6.0"
 ---
 
 
@@ -26,7 +26,7 @@ Al completar una fase:
 | 0 | Baseline documentado + agentes | **done** | — |
 | 1 | Filtros UX (`--only-outdated`, `--only-stale`) | **done** | Alta |
 | 2 | Pre-check de espacio libre en `download` | **done** | Alta |
-| 3 | Cache de latest (TTL) | pending | Alta |
+| 3 | Cache de latest (TTL) | **done** | Alta |
 | 4 | Sidecar metadata + checksum opcional | pending | Alta |
 | 5 | Política multi-LTS / pin de serie | pending | Media |
 | 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | pending | Media |
@@ -119,7 +119,7 @@ uv run ventoy-iso-check download /mnt/e --dry-run --abort-gib 99999
 
 ## Fase 3 — Cache de latest
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.6.0)  
 **Estimación:** M  
 **Depende de:** 0
 
@@ -129,11 +129,11 @@ uv run ventoy-iso-check download /mnt/e --dry-run --abort-gib 99999
 
 ### Trabajo
 
-- [ ] Cache en `~/.cache/ventoy-iso-check/latest.json` (o `$XDG_CACHE_HOME`).
-- [ ] Clave: `resolver + edition + arch` (o catalog id).
-- [ ] TTL default 12 h; flags `--no-cache`, `--refresh`.
-- [ ] Guardar `ResolveResult` serializable + `fetched_at`.
-- [ ] README: mencionar ubicación y flags.
+- [x] Cache en `~/.cache/ventoy-iso-check/latest.json` (o `$XDG_CACHE_HOME` / `--cache-dir`).
+- [x] Clave: `catalog_id|resolver|edition|arch|local_version`.
+- [x] TTL default 12 h; flags `--no-cache`, `--refresh`, `--ttl-hours`.
+- [x] Guardar `ResolveResult` serializable + `fetched_at`.
+- [x] Stats hits/misses en consola; README.
 
 ### Criterios de aceptación
 
@@ -143,13 +143,9 @@ time uv run ventoy-iso-check check /mnt/e --only ubuntu,fedora   # 2ª vez mucho
 uv run ventoy-iso-check check /mnt/e --refresh --only ubuntu
 ```
 
-### Archivos probables
-
-`resolvers.py` o `cache.py`, `checker.py`, `cli.py`
-
 ### No hacer
 
-Cachear en el USB por defecto (lento/sucio); opcional flag `--cache-dir` sí.
+Cachear en el USB por defecto (lento/sucio); opcional `--cache-dir` sí.
 
 ---
 
@@ -327,5 +323,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 0 | 2026-07-24 | `0ca3b37` / `f2d4910` | Baseline 0.3.0: fechas mtime, Docker, LTS/Fedora fixes, docs agentes |
 | 1 | 2026-07-25 | (v0.4.0) | `--only-outdated` / `--only-stale` / `--only-actionable`; catálogo elementary, virtio, mint mate |
 | 2 | 2026-07-25 | (v0.5.0) | Espacio libre pre-download; docs/WINDOWS.md |
+| 3 | 2026-07-25 | (v0.6.0) | Cache latest TTL 12h; validación fases 1–2 en /mnt/e |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

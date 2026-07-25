@@ -3,6 +3,20 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.6.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 3:** cache de latest en `~/.cache/ventoy-iso-check/latest.json` (TTL 12 h).
+  - Flags: `--no-cache`, `--refresh`, `--cache-dir`, `--ttl-hours`.
+  - Stats en consola: hits/misses/stores.
+- Validación en disco real de fases 1 y 2 (`/mnt/e`).
+
+### Cambiado
+
+- Versión 0.5.0 → 0.6.0.
+- Plan: Fase 3 done; siguiente Fase 4 (sidecar + checksum).
+
 ## [0.5.0] — 2026-07-25
 
 ### Añadido

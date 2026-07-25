@@ -18,8 +18,8 @@
 
 ```text
 Lee AGENTS.md y docs/PHASED_PLAN.md.
-Ejecuta la siguiente fase pending (actualmente Fase 3 — cache).
+Ejecuta la siguiente fase pending (actualmente Fase 4 — sidecar/checksum).
 No descargues ISOs reales. Verifica con uv. Commit, push y actualiza el plan.
 ```
 
-Orden de fases: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9** (1 y 2 ya hechas).
+Orden de fases: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9** (1–3 ya hechas).
