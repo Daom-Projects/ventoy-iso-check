@@ -16,15 +16,10 @@ if [ "$#" -eq 0 ]; then
   set -- --help
 fi
 
-# Atajos: `check` sin path usa VENTOY_ROOT
+# Atajos: subcomandos con root opcional (usan VENTOY_ROOT del entorno)
 case "${1:-}" in
-  scan|check|links|download)
-    cmd="$1"
-    shift
-    # Si el usuario no pasó un path y el siguiente arg no es opción,
-    # insertamos VENTOY_ROOT solo cuando no hay args de path.
-    # Typer acepta root opcional; sin args usa default_ventoy_root() → VENTOY_ROOT.
-    exec ventoy-iso-check "$cmd" "$@"
+  scan|check|links|download|export|suggest|bootloaders|ventoy|menu|meta)
+    exec ventoy-iso-check "$@"
     ;;
   *)
     exec ventoy-iso-check "$@"

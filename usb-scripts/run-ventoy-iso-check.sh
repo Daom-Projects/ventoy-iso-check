@@ -68,7 +68,8 @@ else
   info "Imagen ya presente (REBUILD=1 para reconstruir)"
 fi
 
-if [[ "${MENU:-0}" == "1" ]]; then
+# Default: menú interactivo (como en PowerShell)
+if [[ "${MENU:-1}" == "1" && "$#" -eq 0 ]]; then
   set -- menu
 elif [[ "$#" -eq 0 ]]; then
   set -- scan --sort age

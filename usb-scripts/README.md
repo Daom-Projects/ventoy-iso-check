@@ -33,15 +33,24 @@ Código de salida `3` = Docker no disponible.
 # Primera vez: clonar (si aún no está)
 cd E:\Scripts
 git clone https://github.com/Daom-Projects/ventoy-iso-check.git
+# o: .\UPDATE-FROM-GITHUB.ps1
 
-# Ejecutar (acceso directo recomendado)
-cd E:\Scripts\ventoy-iso-check\usb-scripts
+# Ejecutar — SIN argumentos abre el MENÚ
+cd E:\Scripts
 .\Run-VentoyIsoCheck.ps1
+
+# O con subcomandos
 .\Run-VentoyIsoCheck.ps1 check --only-outdated --urls
 .\Run-VentoyIsoCheck.ps1 bootloaders
-.\Run-VentoyIsoCheck.ps1 ventoy
+.\Run-VentoyIsoCheck.ps1 scan --sort age
 .\Run-VentoyIsoCheck.ps1 -Rebuild   # reconstruir imagen Docker
 ```
+
+**Si sale `total=0` ISOs:** Docker Desktop no montó la unidad.
+
+1. Docker Desktop → **Settings → Resources → File sharing** → habilita la unidad `E:`.
+2. Apply & Restart.
+3. Prueba: `docker run --rm -v E:\:/ventoy ventoy-iso-check:local scan`
 
 Si PowerShell bloquea scripts:
 
