@@ -3,6 +3,21 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.5.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 2:** pre-check de espacio libre en `download` (`disk.py`).
+  - Muestra libre/total en GiB.
+  - **WARN** si libre &lt; `--warn-gib` (default 8).
+  - **ABORT** (exit 3) si libre &lt; `--abort-gib` (default 2), salvo `--force`.
+- Guía [docs/WINDOWS.md](./docs/WINDOWS.md): probar desde PowerShell (Docker / uv / WSL).
+
+### Cambiado
+
+- Versión 0.4.0 → 0.5.0.
+- Plan: Fase 2 completada; siguiente Fase 3 (cache).
+
 ## [0.4.0] — 2026-07-25
 
 ### Añadido

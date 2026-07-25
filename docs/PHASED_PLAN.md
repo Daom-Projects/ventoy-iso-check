@@ -3,8 +3,8 @@ title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
 last_updated: 2026-07-25
-current_phase: 2
-version_baseline: "0.4.0"
+current_phase: 3
+version_baseline: "0.5.0"
 ---
 
 
@@ -25,7 +25,7 @@ Al completar una fase:
 |------|--------|--------|-----------|
 | 0 | Baseline documentado + agentes | **done** | — |
 | 1 | Filtros UX (`--only-outdated`, `--only-stale`) | **done** | Alta |
-| 2 | Pre-check de espacio libre en `download` | pending | Alta |
+| 2 | Pre-check de espacio libre en `download` | **done** | Alta |
 | 3 | Cache de latest (TTL) | pending | Alta |
 | 4 | Sidecar metadata + checksum opcional | pending | Alta |
 | 5 | Política multi-LTS / pin de serie | pending | Media |
@@ -91,7 +91,7 @@ Filtrar **después** de `run_check`. El filtro aplica también al JSON exportado
 
 ## Fase 2 — Espacio libre antes de download
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.5.0)  
 **Estimación:** S  
 **Depende de:** 0
 
@@ -101,22 +101,19 @@ Evitar descargas a medias cuando el USB no tiene espacio.
 
 ### Trabajo
 
-- [ ] Función `disk_usage(ventoy_root)` (shutil.disk_usage).
-- [ ] En `download` (antes de sisou): mostrar free/total.
-- [ ] Si free < umbral (default 8 GiB) → warning; si free < 2 GiB → abort salvo `--force`.
-- [ ] Opcional: estimar tamaño solo de updaters enabled (fase posterior si es complejo).
+- [x] Función `disk_usage(ventoy_root)` (`disk.py` + `shutil.disk_usage`).
+- [x] En `download` (antes de sisou): mostrar free/total.
+- [x] WARN si free < `--warn-gib` (default 8); ABORT si free < `--abort-gib` (default 2) salvo `--force`.
+- [ ] Opcional (futuro): estimar tamaño de updaters enabled.
 
 ### Criterios de aceptación
 
 ```bash
 uv run ventoy-iso-check download /mnt/e --dry-run
 # imprime espacio libre
-# con free simulado bajo: exit != 0 sin --force
+uv run ventoy-iso-check download /mnt/e --dry-run --abort-gib 99999
+# exit 3 sin --force
 ```
-
-### Archivos probables
-
-`sisou_bridge.py` o nuevo `disk.py`, `cli.py`
 
 ---
 
@@ -329,5 +326,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 |------|--------------|--------|-------|
 | 0 | 2026-07-24 | `0ca3b37` / `f2d4910` | Baseline 0.3.0: fechas mtime, Docker, LTS/Fedora fixes, docs agentes |
 | 1 | 2026-07-25 | (v0.4.0) | `--only-outdated` / `--only-stale` / `--only-actionable`; catálogo elementary, virtio, mint mate |
+| 2 | 2026-07-25 | (v0.5.0) | Espacio libre pre-download; docs/WINDOWS.md |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.4.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-green.svg)](./CHANGELOG.md)
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
@@ -34,16 +34,18 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.4.0)
+## Características (v0.5.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
 - **File date** + **Age** del archivo en el volumen (mtime; birthtime si el FS lo expone).
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
+- **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
 - Generación de **enlaces** (Markdown) y export **JSON**.
 - Descarga opcional vía **sisou** (Python 3.12 / Docker).
 - Portable: **Docker**, **uv**, variables `$VENTOY_ROOT` / `$VENTOY_HOST`.
 - Catálogo editable (`catalog.yaml`) + plantilla `sisou.toml`.
+- Guía Windows: [docs/WINDOWS.md](./docs/WINDOWS.md).
 
 ### Estados
 
@@ -147,9 +149,23 @@ uv run ventoy-iso-check download --dry-run
 ### Descarga real (`download` / sisou)
 
 ```bash
+# Muestra espacio libre y el comando sisou (sin bajar)
 uv run ventoy-iso-check download /mnt/e --dry-run
+
+# Real
 uv run ventoy-iso-check download /mnt/e
+
+# Umbrales (GiB): WARN por defecto 8, ABORT por defecto 2
+uv run ventoy-iso-check download /mnt/e --warn-gib 10 --abort-gib 3
+uv run ventoy-iso-check download /mnt/e --force   # ignora ABORT de espacio
 ```
+
+| Flag download | Efecto |
+|---------------|--------|
+| `--dry-run` | No ejecuta sisou |
+| `--force` | Continúa aunque libre &lt; `--abort-gib` |
+| `--warn-gib N` | Advertencia si libre &lt; N GiB (default 8) |
+| `--abort-gib N` | Exit 3 si libre &lt; N GiB (default 2) |
 
 En host, internamente:
 
@@ -158,6 +174,20 @@ uv tool run --python 3.12 sisou@latest <config-temporal>
 ```
 
 Python **3.12** es necesario para wheels de `libtorrent` (dependencia de sisou).
+
+### Probar desde Windows (PowerShell)
+
+Ver guía completa: **[docs/WINDOWS.md](./docs/WINDOWS.md)**.
+
+```powershell
+# Docker Desktop (recomendado)
+cd path\to\ventoy-iso-check
+git pull
+docker build -t ventoy-iso-check:local .
+docker run --rm -v E:\:/ventoy ventoy-iso-check:local scan
+docker run --rm -v E:\:/ventoy ventoy-iso-check:local check --only-outdated --urls
+docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
+```
 
 ---
 
@@ -312,7 +342,7 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 |------|------|--------|
 | 0 | Baseline + docs agentes | done |
 | 1 | `--only-outdated` / `--only-stale` | **done** (v0.4.0) |
-| 2 | Espacio libre pre-download | pending |
+| 2 | Espacio libre pre-download | **done** (v0.5.0) |
 | 3 | Cache de latest (TTL) | pending |
 | 4 | Sidecar metadata + checksum | pending |
 | 5–9 | Multi-LTS, catálogo, tests, export, CI | pending |

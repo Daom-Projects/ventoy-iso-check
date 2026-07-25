@@ -12,13 +12,14 @@
 | [CONTEXT.md](./CONTEXT.md) | Agentes | Dominio Ventoy / WSL / decisiones |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Agentes | Flujos y módulos |
 | [PHASED_PLAN.md](./PHASED_PLAN.md) | Agentes + humano | **Plan por fases ejecutable** |
+| [WINDOWS.md](./WINDOWS.md) | Usuario Windows | PowerShell / Docker / WSL |
 
 ## Continuar desarrollo
 
 ```text
 Lee AGENTS.md y docs/PHASED_PLAN.md.
-Ejecuta la siguiente fase pending (actualmente Fase 1).
+Ejecuta la siguiente fase pending (actualmente Fase 3 — cache).
 No descargues ISOs reales. Verifica con uv. Commit, push y actualiza el plan.
 ```
 
-Orden de fases: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9**.
+Orden de fases: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9** (1 y 2 ya hechas).

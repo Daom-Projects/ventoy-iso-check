@@ -9,6 +9,7 @@ from rich.console import Console
 
 from ventoy_iso_check import __version__
 from ventoy_iso_check.checker import run_check
+from ventoy_iso_check.disk import SpaceVerdict, check_download_space
 from ventoy_iso_check.filters import filter_items
 from ventoy_iso_check.paths import default_ventoy_root, project_root
 from ventoy_iso_check.reporters import print_table, write_json, write_links_markdown
@@ -297,11 +298,27 @@ def download_cmd(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Mostrar el comando sisou sin ejecutarlo."
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Continuar aunque el espacio libre esté por debajo del umbral de abort.",
+    ),
+    warn_gib: float = typer.Option(
+        8.0,
+        "--warn-gib",
+        help="Advertir si el libre es menor que este valor (GiB).",
+    ),
+    abort_gib: float = typer.Option(
+        2.0,
+        "--abort-gib",
+        help="Abortar si el libre es menor que este valor (GiB), salvo --force.",
+    ),
     log_level: str = typer.Option("INFO", "--log-level", "-l"),
 ) -> None:
     """Descargar/actualizar ISOs soportadas mediante SuperISOUpdater (sisou).
 
     Requiere red y espacio libre. En host: uv + Python 3.12. En Docker: sisou embebido.
+    Antes de lanzar sisou comprueba espacio libre en el volumen (Fase 2).
     """
     _setup_log(log_level)
     ventoy = (root or _root_arg()).resolve()
@@ -311,11 +328,33 @@ def download_cmd(
         f"  config plantilla: {cfg}\n"
         f"  ventoy root:      {ventoy}\n"
         f"  proyecto:         {project_root()}\n"
-        f"  dry_run={dry_run}"
+        f"  dry_run={dry_run}  force={force}"
     )
-    if not ventoy.is_dir() and not dry_run:
-        console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
-        raise typer.Exit(2)
+    if not ventoy.is_dir():
+        if dry_run:
+            console.print(
+                f"[yellow]AVISO:[/yellow] el directorio no existe o no está montado: {ventoy}"
+            )
+        else:
+            console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
+            raise typer.Exit(2)
+    else:
+        _space, verdict, space_msg = check_download_space(
+            ventoy,
+            warn_gib=warn_gib,
+            abort_gib=abort_gib,
+            force=force,
+        )
+        if verdict == SpaceVerdict.ABORT:
+            console.print(f"[red]{space_msg}[/red]")
+            raise typer.Exit(3)
+        if verdict == SpaceVerdict.WARN:
+            console.print(f"[yellow]{space_msg}[/yellow]")
+        elif verdict == SpaceVerdict.UNKNOWN:
+            console.print(f"[yellow]{space_msg}[/yellow]")
+        else:
+            console.print(f"[green]{space_msg}[/green]")
+
     code = run_sisou(
         cfg,
         ventoy_root=ventoy if ventoy.is_dir() or dry_run else None,
