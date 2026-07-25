@@ -106,6 +106,6 @@ docs/
 
 ## Versión actual
 
-- Paquete: **0.8.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
-- Fase del plan activa: **6** (suggest + más distros)
-- Fases hechas: 0–5
+- Paquete: **0.9.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Fase del plan activa: **7** (tests + HTTP paralelo)
+- Fases hechas: 0–6

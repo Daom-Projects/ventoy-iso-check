@@ -70,5 +70,11 @@ def match_entry(
                     # elementary: 8.1 + optional build date 20260219
                     if entry.id == "elementaryos" and len(parts) >= 2:
                         version = f"{parts[0]}.{parts[1]}"
+                    # pearOS: codename + 2026.06 → prefer date version
+                    if entry.id == "pearos":
+                        if len(parts) >= 2 and re.match(r"\d{4}\.\d+", parts[-1] or ""):
+                            version = parts[-1]
+                        elif parts:
+                            version = parts[-1]
             return entry, version
     return None, None

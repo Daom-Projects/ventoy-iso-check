@@ -3,8 +3,8 @@ title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
 last_updated: 2026-07-25
-current_phase: 6
-version_baseline: "0.8.0"
+current_phase: 7
+version_baseline: "0.9.0"
 ---
 
 
@@ -29,7 +29,7 @@ Al completar una fase:
 | 3 | Cache de latest (TTL) | **done** | Alta |
 | 4 | Sidecar metadata + checksum opcional | **done** | Alta |
 | 5 | Política multi-LTS / pin de serie | **done** | Media |
-| 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | pending | Media |
+| 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | **done** | Media |
 | 7 | Calidad: tests de resolvers + async HTTP | pending | Media |
 | 8 | Export CSV/HTML + check Ventoy bootloader | pending | Baja |
 | 9 | CI GitHub Actions (lint/test/docker build) | pending | Baja |
@@ -224,7 +224,7 @@ uv run ventoy-iso-check check /mnt/e --only ubuntu --policy latest-lts
 
 ## Fase 6 — Catálogo inteligente y más distros
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.9.0)  
 **Estimación:** L  
 **Depende de:** 1
 
@@ -234,16 +234,16 @@ Menos `UNSUPPORTED` y menos fricción al añadir distros.
 
 ### Trabajo
 
-- [ ] Comando `ventoy-iso-check suggest` → imprime snippet YAML para UNSUPPORTED.
-- [ ] Añadir distros frecuentes si el usuario las tiene: Debian netinst, Arch, GParted, Memtest86+.
-- [ ] Mejorar Zorin/pearOS (al menos página + version parse robusto).
-- [ ] Documentar cómo contribuir un resolver en ARCHITECTURE.md (ya hay base).
+- [x] Comando `ventoy-iso-check suggest` → YAML para UNSUPPORTED.
+- [x] Debian netinst, Arch, GParted, Memtest86+ en catálogo + resolvers.
+- [x] pearOS: version parse + resolver best-effort.
+- [x] ARCHITECTURE.md: checklist de contribución de resolvers.
 
 ### Criterios de aceptación
 
 ```bash
 uv run ventoy-iso-check suggest /mnt/e
-# output con bloques YAML válidos
+# output con bloques YAML válidos (o mensaje si no hay UNSUPPORTED)
 ```
 
 ---
@@ -323,5 +323,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 3 | 2026-07-25 | (v0.6.0) | Cache latest TTL 12h; validación fases 1–2 en /mnt/e |
 | 4 | 2026-07-25 | (v0.7.0) | Sidecar .meta.json + meta seal/write/verify + checksum |
 | 5 | 2026-07-25 | (v0.8.0) | --policy latest|latest-lts|same-series + --hint-newer-lts |
+| 6 | 2026-07-25 | (v0.9.0) | suggest; Debian/Arch/GParted/Memtest/pearOS |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

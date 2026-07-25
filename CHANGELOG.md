@@ -3,6 +3,20 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.9.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 6:** comando `suggest` → YAML para ISOs `UNSUPPORTED`.
+- Catálogo + resolvers: **Debian netinst**, **Arch Linux**, **GParted Live**, **Memtest86+**.
+- pearOS con resolver best-effort (GitHub / página).
+- `docs/ARCHITECTURE.md` ampliado (checklist para añadir distros).
+
+### Cambiado
+
+- Versión 0.8.0 → 0.9.0.
+- Plan: Fase 6 done; siguiente Fase 7 (tests + HTTP paralelo).
+
 ## [0.8.0] — 2026-07-25
 
 ### Añadido

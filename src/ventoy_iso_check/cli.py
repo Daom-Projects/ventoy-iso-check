@@ -17,6 +17,7 @@ from ventoy_iso_check.paths import default_ventoy_root, project_root
 from ventoy_iso_check.policy import UpgradePolicy
 from ventoy_iso_check.reporters import print_table, write_json, write_links_markdown
 from ventoy_iso_check.sisou_bridge import default_sisou_toml, run_sisou
+from ventoy_iso_check.suggest import format_suggestions, suggest_unsupported
 
 app = typer.Typer(
     name="ventoy-iso-check",
@@ -393,6 +394,46 @@ def links_cmd(
     )
     write_links_markdown(items, output)
     console.print(f"[green]Enlaces escritos en[/green] {output.resolve()}")
+
+
+@app.command("suggest")
+def suggest_cmd(
+    root: Optional[Path] = typer.Argument(
+        None,
+        help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
+    ),
+    catalog: Optional[Path] = typer.Option(None, "--catalog", "-c"),
+    deep: bool = typer.Option(False, "--deep"),
+    output: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Escribir YAML sugerido a un archivo (default: stdout).",
+    ),
+    log_level: str = typer.Option("WARNING", "--log-level", "-l"),
+) -> None:
+    """Sugerir entradas catalog.yaml para ISOs UNSUPPORTED (sin tocar el disco)."""
+    _setup_log(log_level)
+    ventoy = (root or _root_arg()).resolve()
+    if not ventoy.is_dir():
+        console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
+        raise typer.Exit(2)
+    suggestions = suggest_unsupported(
+        ventoy, catalog_path=catalog, deep=deep
+    )
+    text = format_suggestions(suggestions)
+    if output:
+        output.write_text(text, encoding="utf-8")
+        console.print(
+            f"[green]{len(suggestions)} sugerencia(s) →[/green] {output.resolve()}"
+        )
+    else:
+        # raw YAML to stdout for easy copy-paste
+        print(text, end="")
+    if not suggestions:
+        console.print(
+            "[dim]Tip: añade distros a catalog.yaml o copia ISOs nuevas al volumen.[/dim]"
+        )
 
 
 @app.command("download")

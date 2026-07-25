@@ -7,58 +7,80 @@
                     │  CLI (Typer)    │
                     │ scan/check/     │
                     │ links/download  │
+                    │ meta/suggest    │
                     └────────┬────────┘
                              │
-           ┌─────────────────┼─────────────────┐
-           ▼                 ▼                 ▼
-    ┌────────────┐   ┌─────────────┐   ┌──────────────┐
-    │ inventory  │   │  catalog    │   │ sisou_bridge │
-    │ walk disk  │   │  YAML match │   │ download     │
-    │ mtime/age  │   └──────┬──────┘   └──────────────┘
-    └─────┬──────┘          │
-          │                 ▼
-          │          ┌─────────────┐
-          └─────────►│  checker    │
-                     │  + resolve  │
-                     └──────┬──────┘
-                            │
-              ┌─────────────┼─────────────┐
-              ▼             ▼             ▼
-       resolvers.py   version_cmp   reporters
-       (HTTP latest)  (outdated?)   Rich/JSON/MD
+     ┌───────────┬───────────┼───────────┬────────────┐
+     ▼           ▼           ▼           ▼            ▼
+ inventory   catalog     cache      filters      sisou_bridge
+ walk disk   YAML match  latest     UX filter    download
+ mtime/meta              TTL
+     │           │
+     └─────┬─────┘
+           ▼
+        checker (+ policy + resolve + checksum)
+           │
+     ┌─────┴─────┬──────────┐
+     ▼           ▼          ▼
+ resolvers   version_cmp  reporters
+ HTTP        outdated?    Rich/JSON/MD
 ```
 
 ## Módulos
 
 | Módulo | Responsabilidad |
 |--------|-----------------|
-| `cli.py` | Parsing args, defaults de path, orquestación de salida |
-| `paths.py` | Resolución de raíz Ventoy y project root |
-| `inventory.py` | Descubrimiento de `*.iso`/`*.img`, stats de archivo |
-| `catalog.py` | Carga `catalog.yaml`, regex → entry + version local |
-| `resolvers.py` | Consulta mirrors/páginas → `ResolveResult` |
-| `version_cmp.py` | Normalización y `local < latest` |
-| `checker.py` | Une inventario + resolve + `Status` |
-| `reporters.py` | Tabla Rich, JSON, links.md |
-| `sisou_bridge.py` | Materializa `sisou.toml` y lanza sisou/uv |
+| `cli.py` | Typer: scan, check, links, download, meta, suggest |
+| `paths.py` | Raíz Ventoy y project root |
+| `inventory.py` | `*.iso`/`*.img`, mtime, sidecars |
+| `catalog.py` | `catalog.yaml` + regex → entry/version |
+| `suggest.py` | YAML sugerido para UNSUPPORTED |
+| `resolvers.py` | Latest remoto por distro |
+| `policy.py` | `latest` / `latest-lts` / `same-series` |
+| `version_cmp.py` | Comparación de versiones |
+| `checker.py` | Orquesta status |
+| `filters.py` | only-outdated / stale / actionable |
+| `cache.py` | Cache JSON de latest |
+| `meta.py` | Sidecars `.meta.json` + SHA-256 |
+| `disk.py` | Espacio libre pre-download |
+| `reporters.py` | Tabla / JSON / links.md |
+| `sisou_bridge.py` | sisou + seal post-download |
 | `models.py` | Dataclasses y enums |
 
 ## Datos de configuración
 
 | Archivo | Quién lo lee | Mutabilidad |
 |---------|--------------|-------------|
-| `catalog.yaml` | catalog.py | Humano / fase de catálogo |
-| `sisou.toml` | sisou_bridge (plantilla) | Humano; `directory` reescrito en temp |
+| `catalog.yaml` | catalog.py | Humano / `suggest` |
+| `sisou.toml` | sisou_bridge | Humano; `directory` temporal |
 | `$VENTOY_ROOT` | paths / cli | Entorno |
-| Futuro: `*.iso.meta.json` | inventory / download | Tool |
+| `*.iso.meta.json` | meta / inventory | Tool / `meta seal` |
+| `~/.cache/ventoy-iso-check/latest.json` | cache.py | Tool |
 
-## Extender un resolver
+## Extender el catálogo (checklist)
+
+1. **Detectar** la ISO en el USB (`scan`) → si sale `UNSUPPORTED`, usar `suggest`.
+2. **Añadir entrada** en `catalog.yaml` (o pegar el YAML de `suggest` y editar).
+3. **Elegir `managed_by`:**
+   - `sisou` — si SuperISOUpdater tiene updater (y bloque en `sisou.toml`)
+   - `catalog` — resolver propio en `resolvers.py`
+   - `manual` — solo inventario + página
+4. **Resolver (si `catalog`):**
 
 ```python
 # resolvers.py
-def resolve_midistro(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+def resolve_midistro(
+    entry: CatalogEntry,
+    local_version: str | None,
+    # opcional policy-aware:
+    # *, policy: UpgradePolicy = UpgradePolicy.LATEST_LTS, hint_newer: bool = False,
+) -> ResolveResult:
     ...
-    return ResolveResult(latest_version="...", download_url="...", page="...")
+    return ResolveResult(
+        latest_version="1.2.3",
+        download_url="https://...",
+        page="https://...",
+    )
 
 RESOLVERS["midistro"] = resolve_midistro
 ```
@@ -74,6 +96,14 @@ RESOLVERS["midistro"] = resolve_midistro
   page: https://example.com/
 ```
 
+5. Si el resolver respeta multi-LTS, registrarlo en `policy.POLICY_AWARE_RESOLVERS`.
+6. Probar:
+
+```bash
+uv run ventoy-iso-check check "$VENTOY_ROOT" --only midistro --no-cache
+uv run ventoy-iso-check suggest "$VENTOY_ROOT"
+```
+
 ## Docker
 
 ```text
@@ -84,6 +114,7 @@ volume                   → /ventoy = host Ventoy root
 
 ## Límites conocidos
 
-- Resolvers síncronos (secuenciales) → check lento con muchas distros.
+- Resolvers mayormente síncronos (cache mitiga re-scrape).
 - Scraping HTML sin contratos estables.
 - sisou y catalog pueden discrepar en nombres de archivo.
+- `suggest` genera plantillas; hay que revisar `page` / `resolver` a mano.

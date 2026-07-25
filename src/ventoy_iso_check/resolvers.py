@@ -954,6 +954,165 @@ def resolve_virtio_win(entry: CatalogEntry, local_version: str | None) -> Resolv
         return ResolveResult(error=str(e), page=entry.page)
 
 
+def resolve_debian(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Debian amd64 netinst from cdimage.debian.org current."""
+    arch = entry.arch or "amd64"
+    try:
+        with _client() as client:
+            # current → redirects to versioned path
+            base = f"https://cdimage.debian.org/debian-cd/current/{arch}/iso-cd/"
+            r = client.get(base)
+            r.raise_for_status()
+            matches = re.findall(
+                rf'href="(debian-(\d+(?:\.\d+)*)-{re.escape(arch)}-netinst\.iso)"',
+                r.text,
+                flags=re.I,
+            )
+            if not matches:
+                return ResolveResult(
+                    error="No debian netinst in current/",
+                    page=entry.page,
+                )
+            # pick highest version
+            best = max(matches, key=lambda x: x[1])
+            fname, ver = best
+            return ResolveResult(
+                latest_version=ver,
+                download_url=base + fname,
+                page=entry.page or "https://www.debian.org/CD/http-ftp/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_archlinux(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Arch Linux monthly ISO."""
+    try:
+        with _client() as client:
+            r = client.get("https://archlinux.org/download/")
+            # mirrors.kernel.org listing is more scrape-friendly
+            r2 = client.get("https://geo.mirror.pkgbuild.com/iso/latest/")
+            text = r2.text if r2.status_code < 400 else r.text
+            matches = re.findall(
+                r"(archlinux-(\d{4}\.\d{2}\.\d{2})-x86_64\.iso)",
+                text,
+                flags=re.I,
+            )
+            if not matches:
+                return ResolveResult(
+                    error="No Arch ISO listed",
+                    page=entry.page or "https://archlinux.org/download/",
+                )
+            best = max(matches, key=lambda x: x[1])
+            fname, ver = best
+            url = f"https://geo.mirror.pkgbuild.com/iso/latest/{fname}"
+            return ResolveResult(
+                latest_version=ver,
+                download_url=url,
+                page=entry.page or "https://archlinux.org/download/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_gparted(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """GParted Live from SourceForge stable."""
+    try:
+        with _client() as client:
+            r = client.get(
+                "https://sourceforge.net/projects/gparted/files/gparted-live-stable/"
+            )
+            r.raise_for_status()
+            vers = _find_versions(r.text, r'href="[^"]*?/(\d+\.\d+\.\d+-\d+)/"')
+            if not vers:
+                vers = _find_versions(r.text, r"(\d+\.\d+\.\d+-\d+)")
+            latest = _best_version(vers)
+            if not latest:
+                return ResolveResult(error="No GParted version", page=entry.page)
+            fname = f"gparted-live-{latest}-amd64.iso"
+            url = (
+                f"https://sourceforge.net/projects/gparted/files/"
+                f"gparted-live-stable/{latest}/{fname}/download"
+            )
+            return ResolveResult(
+                latest_version=latest,
+                download_url=url,
+                page=entry.page or "https://gparted.org/download.php",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_memtest86plus(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Memtest86+ from GitHub releases."""
+    try:
+        with _client() as client:
+            r = client.get(
+                "https://api.github.com/repos/memtest86plus/memtest86plus/releases/latest"
+            )
+            r.raise_for_status()
+            data = r.json()
+            tag = (data.get("tag_name") or "").lstrip("v")
+            url = None
+            for a in data.get("assets") or []:
+                name = a.get("name") or ""
+                if name.endswith(".iso") and (
+                    "64" in name or "x64" in name.lower() or "x86" in name
+                ):
+                    url = a.get("browser_download_url")
+                    break
+            if not url:
+                for a in data.get("assets") or []:
+                    if (a.get("name") or "").endswith(".iso"):
+                        url = a.get("browser_download_url")
+                        break
+            return ResolveResult(
+                latest_version=tag or None,
+                download_url=url,
+                page=entry.page or "https://www.memtest.org/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_pearos(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """pearOS — try GitHub releases; otherwise page only."""
+    try:
+        with _client() as client:
+            # Common community repos / pages; best-effort
+            for repo in (
+                "PearOS/PearOS",
+                "alainm23/pearOS",
+            ):
+                r = client.get(
+                    f"https://api.github.com/repos/{repo}/releases/latest"
+                )
+                if r.status_code >= 400:
+                    continue
+                data = r.json()
+                tag = (data.get("tag_name") or "").lstrip("v")
+                url = None
+                for a in data.get("assets") or []:
+                    name = a.get("name") or ""
+                    if "x86_64" in name and name.endswith(".iso"):
+                        url = a.get("browser_download_url")
+                        break
+                if tag or url:
+                    return ResolveResult(
+                        latest_version=tag or local_version,
+                        download_url=url,
+                        page=entry.page or "https://pearos.xyz/",
+                        note="Fuente GitHub community; verifica en pearos.xyz",
+                    )
+            return ResolveResult(
+                latest_version=local_version,
+                page=entry.page or "https://pearos.xyz/",
+                note="Comprueba pearos.xyz / Discord del autor (sin API estable).",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
 RESOLVERS = {
     "ubuntu": resolve_ubuntu,
     "ubuntu_budgie": resolve_ubuntu_budgie,
@@ -971,6 +1130,11 @@ RESOLVERS = {
     "popos": resolve_popos,
     "elementary": resolve_elementary,
     "virtio_win": resolve_virtio_win,
+    "debian": resolve_debian,
+    "archlinux": resolve_archlinux,
+    "gparted": resolve_gparted,
+    "memtest86plus": resolve_memtest86plus,
+    "pearos": resolve_pearos,
     "none": lambda e, v: ResolveResult(page=e.page, note=e.note),
 }
 

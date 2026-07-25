@@ -18,8 +18,8 @@
 
 ```text
 Lee AGENTS.md y docs/PHASED_PLAN.md.
-Ejecuta la siguiente fase pending (actualmente Fase 6 — suggest + distros).
+Ejecuta la siguiente fase pending (actualmente Fase 7 — tests).
 No descargues ISOs reales. Verifica con uv. Commit, push y actualiza el plan.
 ```
 
-Orden de fases: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9** (1–5 ya hechas).
+Orden de fases: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9** (1–6 ya hechas).

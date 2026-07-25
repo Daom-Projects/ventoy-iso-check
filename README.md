@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.8.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.0-green.svg)](./CHANGELOG.md)
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
@@ -34,13 +34,14 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.8.0)
+## Características (v0.9.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
 - **File date** + **Age** (mtime o **sidecar** `downloaded_at`).
 - Sidecars **`.meta.json`**: fecha fiable, URL, SHA-256 opcional.
 - **Política multi-LTS**: `--policy latest|latest-lts|same-series`.
+- **`suggest`**: genera YAML para ISOs aún no catalogadas.
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
 - **Cache de latest** (TTL 12 h, `~/.cache/ventoy-iso-check/`).
@@ -205,6 +206,7 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `meta seal [ROOT]` | No | Escribe `.meta.json` faltantes |
 | `meta write ISO` | No | Sidecar de una ISO (`--url`, `--hash`) |
 | `meta verify [ROOT]` | No | Verifica SHA-256 de sidecars con hash |
+| `suggest [ROOT]` | No | YAML sugerido para ISOs UNSUPPORTED |
 
 | Flag | Efecto |
 |------|--------|
@@ -314,7 +316,15 @@ Ubuntu (desktop, live-server), Linux Mint Cinnamon, Fedora (Workstation, Silverb
 
 ### Check / links (catálogo propio)
 
-Pop!_OS, Ubuntu Budgie, Linux Mint MATE/XFCE, elementary OS, VirtIO Win, Zorin (página; CDN con token).
+Pop!_OS, Ubuntu Budgie, Linux Mint MATE/XFCE, elementary OS, VirtIO Win,  
+Debian netinst, Arch Linux, GParted Live, Memtest86+, pearOS,  
+Zorin (página; CDN con token).
+
+```bash
+# Si copias una ISO desconocida al USB:
+uv run ventoy-iso-check suggest /mnt/e
+# pega el YAML en catalog.yaml, ajusta page/resolver, y re-ejecuta check
+```
 
 ### Solo inventario (manual)
 
@@ -384,7 +394,8 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 3 | Cache de latest (TTL) | **done** (v0.6.0) |
 | 4 | Sidecar metadata + checksum | **done** (v0.7.0) |
 | 5 | Multi-LTS / same-series | **done** (v0.8.0) |
-| 6–9 | suggest, tests, export, CI | pending |
+| 6 | suggest + más distros | **done** (v0.9.0) |
+| 7–9 | tests, export, CI | pending |
 
 Prompt para un agente:
 

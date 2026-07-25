@@ -303,12 +303,55 @@ entries:
   - id: pearos
     label: pearOS
     patterns:
+      - '(?i)^pearOS-([A-Za-z0-9]+)-(\d{4}\.\d+)-x86_64\.iso$'
       - '(?i)^pearOS-.*-(\d{4}\.\d+)-x86_64\.iso$'
       - '(?i)^pearOS-.*\.iso$'
     managed_by: catalog
     page: https://pearos.xyz/
-    resolver: none
-    note: "Proyecto comunitario; comprobar página / Discord del autor."
+    resolver: pearos
+    note: "Proyecto comunitario; releases en GitHub/página del autor."
+
+  - id: debian-netinst
+    label: Debian netinst
+    patterns:
+      - '(?i)^debian-(\d+(?:\.\d+)*)-amd64-netinst\.iso$'
+      - '(?i)^debian-(\d+(?:\.\d+)*)-amd64-DVD-1\.iso$'
+      - '(?i)^debian-.*-amd64-netinst\.iso$'
+    managed_by: catalog
+    page: https://www.debian.org/CD/http-ftp/
+    resolver: debian
+    arch: amd64
+
+  - id: archlinux
+    label: Arch Linux
+    patterns:
+      - '(?i)^archlinux-(\d{4}\.\d{2}\.\d{2})-x86_64\.iso$'
+      - '(?i)^archlinux-.*-x86_64\.iso$'
+    managed_by: catalog
+    page: https://archlinux.org/download/
+    resolver: archlinux
+    arch: x86_64
+
+  - id: gparted-live
+    label: GParted Live
+    patterns:
+      - '(?i)^gparted-live-(\d+\.\d+\.\d+-\d+)-amd64\.iso$'
+      - '(?i)^gparted-live-.*-amd64\.iso$'
+    managed_by: catalog
+    page: https://gparted.org/download.php
+    resolver: gparted
+    arch: amd64
+
+  - id: memtest86plus
+    label: Memtest86+
+    patterns:
+      - '(?i)^memtest86\+-(\d+\.\d+)\.iso$'
+      - '(?i)^mt86plus_(\d+\.\d+)_.*\.iso$'
+      - '(?i)^memtest86plus.*\.iso$'
+      - '(?i)^memtest86\+.*\.iso$'
+    managed_by: catalog
+    page: https://www.memtest.org/
+    resolver: memtest86plus
 
   - id: kaspersky-rescue
     label: Kaspersky Rescue Disk
