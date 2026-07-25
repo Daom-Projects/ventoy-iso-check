@@ -105,10 +105,27 @@ if ($seen -eq 0) {
 
 docker image inspect $Image 1>$null 2>$null
 $imageExists = ($LASTEXITCODE -eq 0)
-if ($Rebuild -or -not $imageExists) {
-    Write-Info "Construyendo imagen (OBLIGATORIO si viste error sh\r)…"
+$needBuild = $Rebuild -or (-not $imageExists)
+
+# Si la imagen existe, probar que el entrypoint no este roto (CRLF / sh\r)
+if ($imageExists -and -not $needBuild) {
+    Write-Info "Comprobando imagen (entrypoint)…"
+    $probeOut = & docker run --rm $Image -V 2>&1 | Out-String
+    $probeCode = $LASTEXITCODE
+    if ($probeCode -ne 0 -or $probeOut -match 'sh\\r' -or $probeOut -match 'sh\r') {
+        Write-Warn "Imagen antigua o rota (exit=$probeCode). Se reconstruye sola…"
+        if ($probeOut.Trim()) { Write-Warn ($probeOut.Trim().Split("`n")[0]) }
+        $needBuild = $true
+    } else {
+        Write-Info "Imagen OK: $($probeOut.Trim())"
+    }
+}
+
+if ($needBuild) {
+    Write-Info "Construyendo imagen Docker (puede tardar unos minutos)…"
     Push-Location $RepoRoot
     try {
+        # --no-cache evita reutilizar capas con entrypoint CRLF
         docker build --no-cache -t $Image .
         if ($LASTEXITCODE -ne 0) {
             Write-Err "docker build fallo (codigo $LASTEXITCODE)"
@@ -117,8 +134,16 @@ if ($Rebuild -or -not $imageExists) {
     } finally {
         Pop-Location
     }
-} else {
-    Write-Info "Imagen ya presente (usa -Rebuild si cambiaste el codigo o viste sh\r)"
+    # Verificar de nuevo
+    $probeOut = & docker run --rm $Image -V 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "La imagen recien construida sigue fallando:"
+        Write-Err $probeOut
+        Write-Err "Revisa que exista: $RepoRoot\docker\entrypoint.sh"
+        Write-Err "Y: git -C $RepoRoot log -1 --oneline   (debe ser 0562c49 o mas nuevo)"
+        exit 1
+    }
+    Write-Info "Build OK: $($probeOut.Trim())"
 }
 
 # Argumentos
