@@ -21,3 +21,6 @@ links.md
 
 # Local overrides
 sisou.local.toml
+
+.mypy_cache/
+.ruff_cache/
