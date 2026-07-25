@@ -9,6 +9,7 @@ from rich.console import Console
 
 from ventoy_iso_check import __version__
 from ventoy_iso_check.checker import run_check
+from ventoy_iso_check.filters import filter_items
 from ventoy_iso_check.paths import default_ventoy_root, project_root
 from ventoy_iso_check.reporters import print_table, write_json, write_links_markdown
 from ventoy_iso_check.sisou_bridge import default_sisou_toml, run_sisou
@@ -95,6 +96,16 @@ def scan_cmd(
         "--stale-days",
         help="Resaltar ISOs con mtime ≥ N días (default 180). 0 = desactivar.",
     ),
+    only_stale: bool = typer.Option(
+        False,
+        "--only-stale",
+        help="Mostrar solo ISOs con age ≥ --stale-days.",
+    ),
+    only_actionable: bool = typer.Option(
+        False,
+        "--only-actionable",
+        help="Mostrar OUTDATED, ERROR y/o stale (según age).",
+    ),
     sort_by: str = typer.Option(
         "path",
         "--sort",
@@ -110,7 +121,20 @@ def scan_cmd(
         raise typer.Exit(2)
     items = run_check(ventoy, catalog_path=catalog, deep=deep, online=False)
     sd = None if stale_days == 0 else stale_days
-    print_table(items, **_display_opts(show_urls=False, no_dates=no_dates, stale_days=sd, sort_by=sort_by))
+    items = filter_items(
+        items,
+        only_stale=only_stale,
+        only_actionable=only_actionable,
+        stale_days=sd,
+    )
+    if not items:
+        console.print("[yellow]Ninguna ISO coincide con los filtros aplicados.[/yellow]")
+    print_table(
+        items,
+        **_display_opts(
+            show_urls=False, no_dates=no_dates, stale_days=sd, sort_by=sort_by
+        ),
+    )
     if json_out:
         write_json(items, json_out)
         console.print(f"JSON escrito en {json_out}")
@@ -146,6 +170,21 @@ def check_cmd(
         "--stale-days",
         help="Resaltar ISOs con mtime ≥ N días (default 180). 0 = desactivar.",
     ),
+    only_outdated: bool = typer.Option(
+        False,
+        "--only-outdated",
+        help="Mostrar solo ISOs con status OUTDATED.",
+    ),
+    only_stale: bool = typer.Option(
+        False,
+        "--only-stale",
+        help="Mostrar solo ISOs con age ≥ --stale-days.",
+    ),
+    only_actionable: bool = typer.Option(
+        False,
+        "--only-actionable",
+        help="Mostrar OUTDATED, ERROR y archivos stale.",
+    ),
     sort_by: str = typer.Option(
         "path",
         "--sort",
@@ -168,6 +207,15 @@ def check_cmd(
         only=only_set,
     )
     sd = None if stale_days == 0 else stale_days
+    items = filter_items(
+        items,
+        only_outdated=only_outdated,
+        only_stale=only_stale,
+        only_actionable=only_actionable,
+        stale_days=sd,
+    )
+    if not items:
+        console.print("[yellow]Ninguna ISO coincide con los filtros aplicados.[/yellow]")
     print_table(
         items,
         **_display_opts(
@@ -196,6 +244,9 @@ def links_cmd(
     deep: bool = typer.Option(False, "--deep"),
     no_dates: bool = typer.Option(False, "--no-dates"),
     stale_days: Optional[int] = typer.Option(180, "--stale-days"),
+    only_outdated: bool = typer.Option(False, "--only-outdated"),
+    only_stale: bool = typer.Option(False, "--only-stale"),
+    only_actionable: bool = typer.Option(False, "--only-actionable"),
     sort_by: str = typer.Option("path", "--sort"),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
@@ -210,6 +261,15 @@ def links_cmd(
         ventoy, catalog_path=catalog, deep=deep, online=True, only=only_set
     )
     sd = None if stale_days == 0 else stale_days
+    items = filter_items(
+        items,
+        only_outdated=only_outdated,
+        only_stale=only_stale,
+        only_actionable=only_actionable,
+        stale_days=sd,
+    )
+    if not items:
+        console.print("[yellow]Ninguna ISO coincide con los filtros aplicados.[/yellow]")
     print_table(
         items,
         **_display_opts(

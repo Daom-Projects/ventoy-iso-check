@@ -69,6 +69,44 @@ entries:
     resolver: linuxmint
     edition: cinnamon
 
+  - id: linuxmint-mate
+    label: Linux Mint MATE
+    patterns:
+      - '(?i)^linuxmint-(\d+(?:\.\d+)?)-mate-64bit\.iso$'
+    managed_by: catalog
+    page: https://linuxmint.com/download.php
+    resolver: linuxmint
+    edition: mate
+
+  - id: linuxmint-xfce
+    label: Linux Mint XFCE
+    patterns:
+      - '(?i)^linuxmint-(\d+(?:\.\d+)?)-xfce-64bit\.iso$'
+    managed_by: catalog
+    page: https://linuxmint.com/download.php
+    resolver: linuxmint
+    edition: xfce
+
+  - id: elementaryos
+    label: elementary OS
+    patterns:
+      - '(?i)^elementaryos-(\d+(?:\.\d+)?)-stable-amd64(?:\.(\d{8}))?\.iso$'
+      - '(?i)^elementaryos-(\d+(?:\.\d+)?)[._-].*\.iso$'
+    managed_by: catalog
+    page: https://elementary.io/
+    resolver: elementary
+    arch: amd64
+
+  - id: virtio-win
+    label: VirtIO Win drivers
+    patterns:
+      - '(?i)^virtio-win-(\d+\.\d+\.\d+)\.iso$'
+      - '(?i)^virtio-win-.*\.iso$'
+    managed_by: catalog
+    page: https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/
+    resolver: virtio_win
+    note: "Drivers VirtIO para VMs Windows (KVM/Proxmox/QEMU)."
+
   - id: fedora-workstation
     label: Fedora Workstation
     patterns:
@@ -180,6 +218,7 @@ entries:
   - id: windows11
     label: Windows 11
     patterns:
+      - '(?i)^Win11_.*?(\d+H\d).*\.iso$'
       - '(?i)^Win11_(\d+H\d)_.*\.iso$'
       - '(?i)^Win11_.*\.iso$'
     managed_by: sisou
@@ -254,6 +293,7 @@ entries:
   - id: zorin
     label: Zorin OS
     patterns:
+      - '(?i)^Zorin-OS-(\d+(?:\.\d+)?)(?:-Core|-Education|-Pro)?-64-bit(?:-r(\d+))?\.iso$'
       - '(?i)^Zorin-OS-(\d+)(?:-Core)?-64-bit(?:-r(\d+))?\.iso$'
       - '(?i)^Zorin-OS-.*\.iso$'
     managed_by: catalog

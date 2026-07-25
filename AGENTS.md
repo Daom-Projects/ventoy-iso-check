@@ -106,5 +106,6 @@ docs/
 
 ## Versión actual
 
-- Paquete: **0.3.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
-- Fase del plan activa: **1** (`--only-outdated` / `--only-stale`)
+- Paquete: **0.4.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Fase del plan activa: **2** (espacio libre pre-download)
+- Fase 1 completada: `--only-outdated` / `--only-stale` / `--only-actionable`

@@ -1,6 +1,6 @@
 [project]
 name = "ventoy-iso-check"
-version = "0.3.0"
+version = "0.4.0"
 description = "Inventario y comprobación de ISOs desactualizadas en un disco Ventoy (híbrido con SuperISOUpdater/sisou)."
 readme = "README.md"
 license = { text = "MIT" }

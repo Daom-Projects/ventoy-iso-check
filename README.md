@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-green.svg)](./CHANGELOG.md)
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
@@ -34,11 +34,12 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.3.0)
+## Características (v0.4.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
 - **File date** + **Age** del archivo en el volumen (mtime; birthtime si el FS lo expone).
+- Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - Generación de **enlaces** (Markdown) y export **JSON**.
 - Descarga opcional vía **sisou** (Python 3.12 / Docker).
 - Portable: **Docker**, **uv**, variables `$VENTOY_ROOT` / `$VENTOY_HOST`.
@@ -178,9 +179,23 @@ Python **3.12** es necesario para wheels de `libtorrent` (dependencia de sisou).
 | `--dry-run` | `download` sin ejecutar |
 | `--json PATH` | Export JSON |
 | `--sort path\|date\|age\|status` | Orden de la tabla |
-| `--stale-days N` | Resalta mtime ≥ N días (default 180; `0` = off) |
+| `--stale-days N` | Umbral de antigüedad (default 180; `0` = off) |
+| `--only-outdated` | Solo status OUTDATED |
+| `--only-stale` | Solo age ≥ `--stale-days` |
+| `--only-actionable` | OUTDATED + ERROR + stale |
 | `--no-dates` | Oculta File date / Age |
 | `-V` / `--version` | Versión del paquete |
+
+```bash
+# Solo lo que hay que actualizar (versión)
+uv run ventoy-iso-check check /mnt/e --only-outdated --urls
+
+# Solo archivos viejos en el disco (≥ 90 días)
+uv run ventoy-iso-check scan /mnt/e --only-stale --stale-days 90 --sort age
+
+# Todo lo accionable
+uv run ventoy-iso-check check /mnt/e --only-actionable --sort status
+```
 
 ### Makefile
 
@@ -227,11 +242,11 @@ uv run ventoy-iso-check scan /mnt/e --stale-days 90 --sort age
 
 ### Check + download (sisou / bien soportados)
 
-Ubuntu (desktop, live-server), Linux Mint, Fedora (Workstation, Silverblue), Kali, CachyOS, Tails, Proxmox VE, Clonezilla, SystemRescue, Rescuezilla, Hiren's BootCD PE, Windows 11 (vía sisou).
+Ubuntu (desktop, live-server), Linux Mint Cinnamon, Fedora (Workstation, Silverblue), Kali, CachyOS, Tails, Proxmox VE, Clonezilla, SystemRescue, Rescuezilla, Hiren's BootCD PE, Windows 11 (vía sisou).
 
 ### Check / links (catálogo propio)
 
-Pop!_OS, Ubuntu Budgie, Zorin (página; CDN con token).
+Pop!_OS, Ubuntu Budgie, Linux Mint MATE/XFCE, elementary OS, VirtIO Win, Zorin (página; CDN con token).
 
 ### Solo inventario (manual)
 
@@ -296,7 +311,7 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | Fase | Tema | Estado |
 |------|------|--------|
 | 0 | Baseline + docs agentes | done |
-| 1 | `--only-outdated` / `--only-stale` | pending |
+| 1 | `--only-outdated` / `--only-stale` | **done** (v0.4.0) |
 | 2 | Espacio libre pre-download | pending |
 | 3 | Cache de latest (TTL) | pending |
 | 4 | Sidecar metadata + checksum | pending |

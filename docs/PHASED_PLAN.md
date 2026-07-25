@@ -2,10 +2,9 @@
 title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
-last_updated: 2026-07-24
-current_phase: 1
-version_baseline: "0.3.0"
-docs_commit: "docs refresh (CHANGELOG, CONTRIBUTING, README)"
+last_updated: 2026-07-25
+current_phase: 2
+version_baseline: "0.4.0"
 ---
 
 
@@ -25,7 +24,7 @@ Al completar una fase:
 | Fase | Nombre | Estado | Prioridad |
 |------|--------|--------|-----------|
 | 0 | Baseline documentado + agentes | **done** | — |
-| 1 | Filtros UX (`--only-outdated`, `--only-stale`) | pending | Alta |
+| 1 | Filtros UX (`--only-outdated`, `--only-stale`) | **done** | Alta |
 | 2 | Pre-check de espacio libre en `download` | pending | Alta |
 | 3 | Cache de latest (TTL) | pending | Alta |
 | 4 | Sidecar metadata + checksum opcional | pending | Alta |
@@ -59,7 +58,7 @@ Al completar una fase:
 
 ## Fase 1 — Filtros UX
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.4.0)  
 **Estimación:** S / 1 sesión  
 **Depende de:** 0
 
@@ -69,11 +68,12 @@ Que el usuario vea solo lo accionable sin scroll de MiniOS/XP.
 
 ### Trabajo
 
-- [ ] Flag `--only-outdated` en `check`/`links` (status == OUTDATED).
-- [ ] Flag `--only-stale` (age_days ≥ `--stale-days`).
-- [ ] Combinables con `--only id1,id2`.
-- [ ] Opcional: `--only-actionable` = OUTDATED | ERROR | (stale si se pide).
-- [ ] Documentar en README.
+- [x] Flag `--only-outdated` en `check`/`links` (status == OUTDATED).
+- [x] Flag `--only-stale` (age_days ≥ `--stale-days`).
+- [x] Combinables con `--only id1,id2`.
+- [x] `--only-actionable` = OUTDATED | ERROR | stale.
+- [x] Documentar en README / CHANGELOG.
+- [x] Módulo `filters.py`.
 
 ### Criterios de aceptación
 
@@ -83,13 +83,9 @@ uv run ventoy-iso-check check /mnt/e --only-outdated
 uv run ventoy-iso-check scan /mnt/e --only-stale --stale-days 90 --sort age
 ```
 
-### Archivos probables
-
-`cli.py`, `checker.py` o `reporters.py`, `README.md`
-
 ### Notas de implementación
 
-Filtrar **después** de `run_check` para no duplicar lógica. Mantener JSON completo si se pide con un flag `--all-json` solo si hace falta; por defecto el filtro aplica también al JSON.
+Filtrar **después** de `run_check`. El filtro aplica también al JSON exportado.
 
 ---
 
@@ -332,5 +328,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | Fase | completed_at | commit | Notas |
 |------|--------------|--------|-------|
 | 0 | 2026-07-24 | `0ca3b37` / `f2d4910` | Baseline 0.3.0: fechas mtime, Docker, LTS/Fedora fixes, docs agentes |
+| 1 | 2026-07-25 | (v0.4.0) | `--only-outdated` / `--only-stale` / `--only-actionable`; catálogo elementary, virtio, mint mate |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

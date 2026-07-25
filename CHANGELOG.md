@@ -3,6 +3,20 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.4.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 1:** filtros `--only-outdated`, `--only-stale`, `--only-actionable` (combinables con `--only` y `--stale-days`).
+- Catálogo: **elementary OS**, **VirtIO Win**, **Linux Mint MATE/XFCE**.
+- Patrones actualizados: Zorin `18.1-Core`, Win11 `es-mx_25H2_…`.
+- Resolvers `elementary` y `virtio_win`.
+
+### Cambiado
+
+- Versión 0.3.0 → 0.4.0.
+- Plan de fases: Fase 1 marcada como completada.
+
 ## [0.3.0] — 2026-07-24
 
 ### Añadido

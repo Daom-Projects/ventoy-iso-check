@@ -729,6 +729,102 @@ def resolve_zorin(entry: CatalogEntry, local_version: str | None) -> ResolveResu
     )
 
 
+def resolve_elementary(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """elementary OS stable ISOs (filename often includes build date)."""
+    try:
+        with _client() as client:
+            # Public download index / blog sometimes lists version; try direct builds path
+            candidates = [
+                "https://builds.elementary.io/",
+                "https://elementary.io/",
+            ]
+            versions: list[str] = []
+            files: list[tuple[str, str]] = []  # ver, url-ish
+            for url in candidates:
+                r = client.get(url)
+                if r.status_code >= 400:
+                    continue
+                # elementaryos-8.1-stable-amd64.20260219.iso or elementaryos-8.0-...
+                for m in re.finditer(
+                    r"elementaryos-(\d+\.\d+)-stable-amd64(?:\.(\d{8}))?\.iso",
+                    r.text,
+                    flags=re.I,
+                ):
+                    ver = m.group(1)
+                    if m.group(2):
+                        ver = f"{m.group(1)}.{m.group(2)}"
+                    versions.append(ver)
+                    files.append((ver, m.group(0)))
+            latest = _best_version(versions)
+            if not latest:
+                # Fallback: if local looks like 8.1, report page only
+                return ResolveResult(
+                    latest_version=local_version,
+                    page=entry.page or "https://elementary.io/",
+                    note="No se listó ISO en builds.elementary.io; verifica en elementary.io",
+                )
+            fname = None
+            for ver, name in files:
+                if ver == latest:
+                    fname = name
+                    break
+            if not fname:
+                # reconstruct without date if needed
+                series = latest.split(".")[0] + "." + latest.split(".")[1]
+                fname = f"elementaryos-{series}-stable-amd64.iso"
+            # Common CDN pattern
+            url = f"https://ams3.dl.elementary.io/download/{fname}"
+            # Prefer builds host if listed
+            head = client.head(url)
+            if head.status_code >= 400:
+                url = f"https://builds.elementary.io/{fname}"
+            return ResolveResult(
+                latest_version=latest,
+                download_url=url,
+                page=entry.page or "https://elementary.io/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_virtio_win(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Red Hat / Fedora VirtIO win drivers ISO (stable)."""
+    base = (
+        "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/"
+        "stable-virtio/"
+    )
+    try:
+        with _client() as client:
+            r = client.get(base)
+            r.raise_for_status()
+            # virtio-win-0.1.285.iso or latest symlink
+            matches = re.findall(
+                r'href="(virtio-win-(\d+\.\d+\.\d+)\.iso)"', r.text, flags=re.I
+            )
+            if not matches:
+                # latest stable often: virtio-win.iso redirect
+                if "virtio-win.iso" in r.text:
+                    return ResolveResult(
+                        latest_version=local_version,
+                        download_url=base + "virtio-win.iso",
+                        page=entry.page or base,
+                        note="Usar virtio-win.iso (stable) si no hay versión en el listado",
+                    )
+                return ResolveResult(
+                    error="No virtio-win ISO en stable-virtio",
+                    page=entry.page or base,
+                )
+            best = max(matches, key=lambda x: x[1])
+            fname, ver = best
+            return ResolveResult(
+                latest_version=ver,
+                download_url=base + fname,
+                page=entry.page or base,
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
 RESOLVERS = {
     "ubuntu": resolve_ubuntu,
     "ubuntu_budgie": resolve_ubuntu_budgie,
@@ -744,6 +840,8 @@ RESOLVERS = {
     "hirens": resolve_hirens,
     "zorin": resolve_zorin,
     "popos": resolve_popos,
+    "elementary": resolve_elementary,
+    "virtio_win": resolve_virtio_win,
     "none": lambda e, v: ResolveResult(page=e.page, note=e.note),
 }
 

@@ -67,5 +67,8 @@ def match_entry(
                         version = f"{parts[0]}-{parts[1]}-r{parts[2]}"
                     elif entry.id == "popos" and len(parts) == 1:
                         version = parts[0]
+                    # elementary: 8.1 + optional build date 20260219
+                    if entry.id == "elementaryos" and len(parts) >= 2:
+                        version = f"{parts[0]}.{parts[1]}"
             return entry, version
     return None, None
