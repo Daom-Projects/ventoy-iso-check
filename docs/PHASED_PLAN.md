@@ -3,8 +3,8 @@ title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
 last_updated: 2026-07-25
-current_phase: 4
-version_baseline: "0.6.0"
+current_phase: 5
+version_baseline: "0.7.0"
 ---
 
 
@@ -27,7 +27,7 @@ Al completar una fase:
 | 1 | Filtros UX (`--only-outdated`, `--only-stale`) | **done** | Alta |
 | 2 | Pre-check de espacio libre en `download` | **done** | Alta |
 | 3 | Cache de latest (TTL) | **done** | Alta |
-| 4 | Sidecar metadata + checksum opcional | pending | Alta |
+| 4 | Sidecar metadata + checksum opcional | **done** | Alta |
 | 5 | Política multi-LTS / pin de serie | pending | Media |
 | 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | pending | Media |
 | 7 | Calidad: tests de resolvers + async HTTP | pending | Media |
@@ -151,7 +151,7 @@ Cachear en el USB por defecto (lento/sucio); opcional `--cache-dir` sí.
 
 ## Fase 4 — Sidecar metadata + checksum
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.7.0)  
 **Estimación:** L  
 **Depende de:** 1 (útil), 2 (recomendado)
 
@@ -161,7 +161,7 @@ Fecha de descarga **fiable** e integridad opcional.
 
 ### Diseño del sidecar
 
-Junto a `foo.iso` → `foo.iso.meta.json` (o `foo.meta.json`):
+Junto a `foo.iso` → `foo.iso.meta.json`:
 
 ```json
 {
@@ -178,22 +178,18 @@ Junto a `foo.iso` → `foo.iso.meta.json` (o `foo.meta.json`):
 
 ### Trabajo
 
-- [ ] Modelo `IsoMeta` + load/save.
-- [ ] inventory: leer sidecar si existe; preferir `downloaded_at` sobre mtime para Age cuando esté.
-- [ ] Columna o indicador `meta` en tabla (✓ si hay sidecar).
-- [ ] Tras download exitoso (sisou o catalog download): escribir sidecar.
-- [ ] Comando o flag `--verify-checksum` (si hay sha256 en meta o URL de CHECKSUMS).
-- [ ] `.gitignore` no aplica a sidecars en USB (viven en el volumen, no en git).
+- [x] Modelo `IsoMeta` + load/save (`meta.py`).
+- [x] inventory: preferir `downloaded_at` sobre mtime para Age.
+- [x] Columna Meta (✓ / ✓ sha / ✗ sha).
+- [x] Tras download sisou: seal ISOs modificadas ≤ 120 min.
+- [x] `meta seal|write|verify` + `--verify-checksum`.
+- [x] Checksum mismatch → ERROR, ISO no se borra.
 
 ### Criterios de aceptación
 
 - Scan muestra age basado en meta cuando existe.
-- Tras un download controlado (o escritura manual de meta de prueba), la fecha coincide.
-- Checksum mismatch → ERROR o nota clara sin borrar la ISO.
-
-### Archivos probables
-
-`models.py`, `inventory.py`, `meta.py` (nuevo), `sisou_bridge.py`, `reporters.py`, `cli.py`
+- `meta write` / `meta seal` generan sidecar.
+- Checksum mismatch → ERROR sin borrar la ISO.
 
 ---
 
@@ -324,5 +320,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 1 | 2026-07-25 | (v0.4.0) | `--only-outdated` / `--only-stale` / `--only-actionable`; catálogo elementary, virtio, mint mate |
 | 2 | 2026-07-25 | (v0.5.0) | Espacio libre pre-download; docs/WINDOWS.md |
 | 3 | 2026-07-25 | (v0.6.0) | Cache latest TTL 12h; validación fases 1–2 en /mnt/e |
+| 4 | 2026-07-25 | (v0.7.0) | Sidecar .meta.json + meta seal/write/verify + checksum |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

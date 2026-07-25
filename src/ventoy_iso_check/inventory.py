@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ventoy_iso_check.catalog import match_entry
+from ventoy_iso_check.meta import load_meta
 from ventoy_iso_check.models import (
     CatalogEntry,
     IsoItem,
@@ -35,7 +36,6 @@ def _stat_times(path: Path) -> tuple[datetime | None, datetime | None, int]:
 
     mtime = from_timestamp(st.st_mtime)
     birth = None
-    # Linux: st_birthtime only on some FS; macOS has it; Windows/9p often not.
     birth_ts = getattr(st, "st_birthtime", None)
     if birth_ts and birth_ts > 0:
         birth = from_timestamp(birth_ts)
@@ -78,9 +78,24 @@ def scan_isos(
             suffix = path.suffix.lower()
             if suffix not in exts:
                 continue
+            # never treat sidecar as ISO
+            if name.endswith(".meta.json"):
+                continue
 
             mtime, birth, size = _stat_times(path)
-            ref = birth or mtime
+            meta = load_meta(path)
+            meta_dt = meta.downloaded_at_dt() if meta else None
+
+            if meta_dt is not None:
+                ref = meta_dt
+                date_source = "meta"
+            elif birth is not None:
+                ref = birth
+                date_source = "birthtime"
+            else:
+                ref = mtime
+                date_source = "mtime"
+
             age_days = None
             if ref is not None:
                 age_days = max(0.0, (now - ref).total_seconds() / 86400.0)
@@ -96,6 +111,11 @@ def scan_isos(
                 mtime=mtime,
                 birthtime=birth,
                 age_days=age_days,
+                has_meta=meta is not None,
+                meta_downloaded_at=meta_dt,
+                meta_sha256=meta.sha256 if meta else None,
+                meta_source_url=meta.source_url if meta else None,
+                date_source=date_source,
             )
             if entry:
                 item.catalog_id = entry.id
@@ -114,6 +134,12 @@ def scan_isos(
                 item.managed_by = "unsupported"
                 item.status = Status.UNSUPPORTED
                 item.note = "Sin entrada en catalog.yaml"
+
+            # Enrich from meta when useful
+            if meta and meta.catalog_id and not item.catalog_id:
+                item.catalog_id = meta.catalog_id
+            if meta and meta.source_url and not item.download_url:
+                item.download_url = meta.source_url
 
             items.append(item)
 

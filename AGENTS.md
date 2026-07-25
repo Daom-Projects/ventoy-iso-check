@@ -106,6 +106,6 @@ docs/
 
 ## Versión actual
 
-- Paquete: **0.6.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
-- Fase del plan activa: **4** (sidecar metadata + checksum)
-- Fases hechas: 0–3 (baseline, filtros, espacio, cache)
+- Paquete: **0.7.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Fase del plan activa: **5** (multi-LTS / pin de serie)
+- Fases hechas: 0–4 (baseline, filtros, espacio, cache, sidecars)

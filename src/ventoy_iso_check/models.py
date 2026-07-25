@@ -50,6 +50,13 @@ class IsoItem:
     mtime: datetime | None = None  # last modification — usually copy/download time
     birthtime: datetime | None = None  # creation if the FS exposes it
     age_days: float | None = None
+    # Sidecar metadata (foo.iso.meta.json)
+    has_meta: bool = False
+    meta_downloaded_at: datetime | None = None
+    meta_sha256: str | None = None
+    meta_source_url: str | None = None
+    checksum_ok: bool | None = None  # None = not verified
+    date_source: str = "mtime"  # "meta" | "birthtime" | "mtime"
     extras: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -78,11 +85,17 @@ class IsoItem:
             "age_days": self.age_days,
             "file_date": self.file_date_str(),
             "age_label": self.age_label(),
+            "has_meta": self.has_meta,
+            "meta_downloaded_at": _iso(self.meta_downloaded_at),
+            "meta_sha256": self.meta_sha256,
+            "meta_source_url": self.meta_source_url,
+            "checksum_ok": self.checksum_ok,
+            "date_source": self.date_source,
         }
 
     def file_date_str(self) -> str:
-        """Best single date to show: birthtime if available else mtime."""
-        dt = self.birthtime or self.mtime
+        """Prefer meta downloaded_at, then birthtime, then mtime."""
+        dt = self.meta_downloaded_at or self.birthtime or self.mtime
         if not dt:
             return "—"
         return dt.astimezone().strftime("%Y-%m-%d")
@@ -99,6 +112,17 @@ class IsoItem:
         if d < 365:
             return f"{d / 30:.1f}mo"
         return f"{d / 365:.1f}y"
+
+    def meta_label(self) -> str:
+        if not self.has_meta:
+            return "—"
+        if self.checksum_ok is True:
+            return "✓ sha"
+        if self.checksum_ok is False:
+            return "✗ sha"
+        if self.meta_sha256:
+            return "✓ hash"
+        return "✓"
 
 
 def utc_now() -> datetime:

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.6.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.0-green.svg)](./CHANGELOG.md)
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
@@ -34,11 +34,12 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.6.0)
+## Características (v0.7.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
-- **File date** + **Age** del archivo en el volumen (mtime; birthtime si el FS lo expone).
+- **File date** + **Age** (mtime o **sidecar** `downloaded_at`).
+- Sidecars **`.meta.json`**: fecha fiable, URL, SHA-256 opcional.
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
 - **Cache de latest** (TTL 12 h, `~/.cache/ventoy-iso-check/`).
@@ -199,7 +200,10 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `scan [ROOT]` | No | Inventario local + fechas |
 | `check [ROOT]` | Sí | Compara con latest (sin descargar) |
 | `links [ROOT] -o FILE` | Sí | Markdown con URLs |
-| `download [ROOT]` | Sí | Actualiza vía sisou |
+| `download [ROOT]` | Sí | Actualiza vía sisou (+ seal meta recientes) |
+| `meta seal [ROOT]` | No | Escribe `.meta.json` faltantes |
+| `meta write ISO` | No | Sidecar de una ISO (`--url`, `--hash`) |
+| `meta verify [ROOT]` | No | Verifica SHA-256 de sidecars con hash |
 
 | Flag | Efecto |
 |------|--------|
@@ -218,8 +222,26 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `--refresh` | Forzar reconsulta de red (sí guarda cache) |
 | `--cache-dir DIR` | Ubicación del cache (default `~/.cache/ventoy-iso-check`) |
 | `--ttl-hours N` | TTL del cache (default 12) |
+| `--verify-checksum` | Verifica SHA-256 de sidecars (lento) |
 | `--no-dates` | Oculta File date / Age |
 | `-V` / `--version` | Versión del paquete |
+
+### Sidecars (`.iso.meta.json`)
+
+```bash
+# Generar meta para ISOs sin sidecar (usa mtime como downloaded_at)
+uv run ventoy-iso-check meta seal /mnt/e
+
+# Una ISO + hash SHA-256
+uv run ventoy-iso-check meta write /mnt/e/Herramientas/virtio-win-0.1.285.iso \
+  --url "https://…" --hash
+
+# Verificar integridad (solo las que tienen sha256 en meta)
+uv run ventoy-iso-check meta verify /mnt/e
+uv run ventoy-iso-check check /mnt/e --verify-checksum --only virtio
+```
+
+> El `*` en File date indica que la fecha viene del sidecar, no solo del FS.
 
 ```bash
 # Solo lo que hay que actualizar (versión)
@@ -349,7 +371,7 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 1 | `--only-outdated` / `--only-stale` | **done** (v0.4.0) |
 | 2 | Espacio libre pre-download | **done** (v0.5.0) |
 | 3 | Cache de latest (TTL) | **done** (v0.6.0) |
-| 4 | Sidecar metadata + checksum | pending |
+| 4 | Sidecar metadata + checksum | **done** (v0.7.0) |
 | 5–9 | Multi-LTS, catálogo, tests, export, CI | pending |
 
 Prompt para un agente:

@@ -122,7 +122,25 @@ def run_sisou(
     print(" ".join(cmd))
     try:
         proc = subprocess.run(cmd, check=False)
-        return proc.returncode
+        code = proc.returncode
+        # After a successful download, seal recently modified ISOs with sidecars
+        if code == 0 and ventoy_root is not None and Path(ventoy_root).is_dir():
+            try:
+                from ventoy_iso_check.meta import seal_tree
+
+                sealed = seal_tree(
+                    Path(ventoy_root),
+                    only_missing=True,
+                    compute_hash=False,
+                    recently_modified_minutes=120,
+                )
+                if sealed:
+                    print(
+                        f"Sidecars .meta.json escritos (ISOs recientes): {len(sealed)}"
+                    )
+            except Exception as e:
+                log.warning("No se pudieron escribir sidecars post-download: %s", e)
+        return code
     finally:
         if temp_config:
             temp_config.unlink(missing_ok=True)

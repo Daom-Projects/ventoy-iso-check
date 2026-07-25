@@ -6,6 +6,7 @@ from pathlib import Path
 from ventoy_iso_check.cache import ResolveCache, cache_key
 from ventoy_iso_check.catalog import load_catalog, match_entry
 from ventoy_iso_check.inventory import scan_isos
+from ventoy_iso_check.meta import verify_sha256
 from ventoy_iso_check.models import CatalogEntry, IsoItem, Status
 from ventoy_iso_check.resolvers import resolve
 from ventoy_iso_check.version_cmp import is_outdated
@@ -21,6 +22,7 @@ def run_check(
     online: bool = True,
     only: set[str] | None = None,
     cache: ResolveCache | None = None,
+    verify_checksum: bool = False,
 ) -> list[IsoItem]:
     entries, defaults = load_catalog(catalog_path)
     skip = set(defaults.get("skip_dir_names") or [])
@@ -100,10 +102,36 @@ def run_check(
         else:
             item.status = Status.UNKNOWN
 
+    if verify_checksum:
+        _apply_checksum_verification(items)
+
     if cache is not None and dirty:
         cache.save()
 
     return items
+
+
+def _apply_checksum_verification(items: list[IsoItem]) -> None:
+    """Verify SHA-256 from sidecar when present. Never deletes the ISO."""
+    for item in items:
+        if not item.meta_sha256:
+            continue
+        log.info("Verificando SHA-256: %s", item.filename)
+        try:
+            ok, actual = verify_sha256(item.path, item.meta_sha256)
+        except OSError as e:
+            item.checksum_ok = False
+            item.status = Status.ERROR
+            item.note = f"No se pudo leer para checksum: {e}"
+            continue
+        item.checksum_ok = ok
+        if not ok:
+            item.status = Status.ERROR
+            item.note = (
+                f"SHA-256 no coincide (meta={item.meta_sha256[:16]}… "
+                f"actual={actual[:16]}…). ISO no borrada."
+            )
+            log.error("%s: checksum mismatch", item.filename)
 
 
 def entry_for_filename(filename: str, catalog_path: Path | None = None) -> CatalogEntry | None:

@@ -76,11 +76,11 @@ Historial de bugs: resolvers **anclados a la serie local** daban falsos `OK`
 
 ## Fechas en disco
 
-- `mtime` (y `birthtime` si existe) en `IsoItem`.
-- Columnas **File date** / **Age** en tabla; JSON con ISO-8601.
+- Preferencia: **sidecar** `foo.iso.meta.json` → `downloaded_at`, luego birthtime, luego mtime.
+- Columnas **File date** / **Age** / **Meta** en tabla; JSON con ISO-8601.
 - No confundir con fecha de release upstream.
-- En copias entre discos el mtime puede conservarse → no es 100 % “instante de descarga”.
-- Mejora futura (fase del plan): sidecar `.meta.json` con `downloaded_at` real.
+- Comandos: `meta seal`, `meta write`, `meta verify`; post-download sella ISOs recientes.
+- SHA-256 opcional en sidecar; mismatch → ERROR sin borrar la ISO.
 
 ## SuperISOUpdater (sisou)
 
@@ -122,7 +122,7 @@ Cambia con el tiempo; **no hardcodear versiones en código**. Última revisión 
 | `CHANGELOG.md` | Releases |
 | `CONTRIBUTING.md` | Contribuciones |
 | `AGENTS.md` / `CLAUDE.md` | Agentes |
-| `docs/PHASED_PLAN.md` | Roadmap ejecutable (fase actual: **4**) |
+| `docs/PHASED_PLAN.md` | Roadmap ejecutable (fase actual: **5**) |
 | `docs/WINDOWS.md` | Pruebas desde PowerShell / Docker Desktop |
 | `docs/ARCHITECTURE.md` | Módulos y flujos |
 

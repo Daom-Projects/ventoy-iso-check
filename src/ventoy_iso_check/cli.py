@@ -12,6 +12,7 @@ from ventoy_iso_check.cache import ResolveCache, default_cache_file
 from ventoy_iso_check.checker import run_check
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
 from ventoy_iso_check.filters import filter_items
+from ventoy_iso_check.meta import seal_tree, write_meta_for_iso
 from ventoy_iso_check.paths import default_ventoy_root, project_root
 from ventoy_iso_check.reporters import print_table, write_json, write_links_markdown
 from ventoy_iso_check.sisou_bridge import default_sisou_toml, run_sisou
@@ -126,6 +127,11 @@ def scan_cmd(
         "--only-actionable",
         help="Mostrar OUTDATED, ERROR y/o stale (según age).",
     ),
+    verify_checksum: bool = typer.Option(
+        False,
+        "--verify-checksum",
+        help="Verificar SHA-256 de sidecars (lento).",
+    ),
     sort_by: str = typer.Option(
         "path",
         "--sort",
@@ -139,7 +145,13 @@ def scan_cmd(
     if not ventoy.is_dir():
         console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
         raise typer.Exit(2)
-    items = run_check(ventoy, catalog_path=catalog, deep=deep, online=False)
+    items = run_check(
+        ventoy,
+        catalog_path=catalog,
+        deep=deep,
+        online=False,
+        verify_checksum=verify_checksum,
+    )
     sd = None if stale_days == 0 else stale_days
     items = filter_items(
         items,
@@ -223,6 +235,11 @@ def check_cmd(
         "--ttl-hours",
         help="TTL del cache de latest en horas (default 12).",
     ),
+    verify_checksum: bool = typer.Option(
+        False,
+        "--verify-checksum",
+        help="Verificar SHA-256 de sidecars .meta.json (lento en USB).",
+    ),
     sort_by: str = typer.Option(
         "path",
         "--sort",
@@ -252,6 +269,7 @@ def check_cmd(
         online=not offline,
         only=only_set,
         cache=cache,
+        verify_checksum=verify_checksum,
     )
     if cache is not None:
         console.print(f"[dim]{cache.stats_line()}[/dim]")
@@ -427,6 +445,124 @@ def download_cmd(
         dry_run=dry_run,
     )
     raise typer.Exit(code)
+
+
+meta_app = typer.Typer(
+    name="meta",
+    help="Gestionar sidecars .meta.json junto a las ISOs (fecha fiable + checksum).",
+    no_args_is_help=True,
+)
+app.add_typer(meta_app, name="meta")
+
+
+@meta_app.command("seal")
+def meta_seal_cmd(
+    root: Optional[Path] = typer.Argument(
+        None,
+        help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
+    ),
+    all_files: bool = typer.Option(
+        False,
+        "--all",
+        help="Reescribir también ISOs que ya tienen sidecar.",
+    ),
+    compute_hash: bool = typer.Option(
+        False,
+        "--hash",
+        help="Calcular SHA-256 (lento en USB grande).",
+    ),
+    recent_minutes: Optional[float] = typer.Option(
+        None,
+        "--recent-minutes",
+        help="Solo ISOs modificadas en los últimos N minutos.",
+    ),
+    log_level: str = typer.Option("INFO", "--log-level", "-l"),
+) -> None:
+    """Escribir sidecars .meta.json para ISOs sin meta (o todas con --all)."""
+    _setup_log(log_level)
+    ventoy = (root or _root_arg()).resolve()
+    if not ventoy.is_dir():
+        console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
+        raise typer.Exit(2)
+    written = seal_tree(
+        ventoy,
+        only_missing=not all_files,
+        compute_hash=compute_hash,
+        recently_modified_minutes=recent_minutes,
+    )
+    console.print(
+        f"[green]Sidecars escritos:[/green] {len(written)} "
+        f"(only_missing={not all_files}, hash={compute_hash})"
+    )
+    for p in written[:20]:
+        console.print(f"  {p}")
+    if len(written) > 20:
+        console.print(f"  … y {len(written) - 20} más")
+
+
+@meta_app.command("write")
+def meta_write_cmd(
+    iso: Path = typer.Argument(..., help="Ruta al archivo .iso/.img", exists=True),
+    url: Optional[str] = typer.Option(None, "--url", help="URL de origen"),
+    catalog_id: Optional[str] = typer.Option(None, "--catalog-id"),
+    hash_file: bool = typer.Option(False, "--hash", help="Calcular SHA-256"),
+    log_level: str = typer.Option("INFO", "--log-level", "-l"),
+) -> None:
+    """Crear/actualizar sidecar para una sola ISO."""
+    from datetime import datetime, timezone
+
+    from ventoy_iso_check.catalog import load_catalog, match_entry
+
+    _setup_log(log_level)
+    entries, _ = load_catalog()
+    entry, ver = match_entry(iso.name, entries)
+    meta = write_meta_for_iso(
+        iso,
+        catalog_id=catalog_id or (entry.id if entry else None),
+        local_version=ver,
+        source_url=url,
+        downloaded_at=datetime.now(timezone.utc),
+        compute_hash=hash_file,
+    )
+    console.print(
+        f"[green]Escrito[/green] {iso.name}.meta.json  "
+        f"downloaded_at={meta.downloaded_at}  sha256={bool(meta.sha256)}"
+    )
+
+
+@meta_app.command("verify")
+def meta_verify_cmd(
+    root: Optional[Path] = typer.Argument(None),
+    only: Optional[str] = typer.Option(None, "--only"),
+    log_level: str = typer.Option("INFO", "--log-level", "-l"),
+) -> None:
+    """Verificar SHA-256 de ISOs que tengan hash en el sidecar."""
+    _setup_log(log_level)
+    ventoy = (root or _root_arg()).resolve()
+    if not ventoy.is_dir():
+        console.print(f"[red]No existe:[/red] {ventoy}")
+        raise typer.Exit(2)
+    only_set = {s.strip() for s in only.split(",")} if only else None
+    items = run_check(
+        ventoy,
+        online=False,
+        only=only_set,
+        verify_checksum=True,
+    )
+    with_hash = [i for i in items if i.meta_sha256]
+    if not with_hash:
+        console.print(
+            "[yellow]Ninguna ISO con sha256 en sidecar. "
+            "Usa: ventoy-iso-check meta seal --hash[/yellow]"
+        )
+        raise typer.Exit(0)
+    ok_n = sum(1 for i in with_hash if i.checksum_ok is True)
+    bad = [i for i in with_hash if i.checksum_ok is False]
+    console.print(f"Verificados: {len(with_hash)}  OK={ok_n}  FAIL={len(bad)}")
+    for i in bad:
+        console.print(f"[red]FAIL[/red] {i.relpath}: {i.note}")
+    print_table(with_hash, show_dates=True, stale_days=None)
+    raise typer.Exit(1 if bad else 0)
 
 
 if __name__ == "__main__":

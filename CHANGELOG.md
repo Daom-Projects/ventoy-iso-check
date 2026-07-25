@@ -3,6 +3,22 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.7.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 4:** sidecars `foo.iso.meta.json` con `downloaded_at`, `source_url`, `sha256`.
+  - Comandos: `meta seal`, `meta write`, `meta verify`.
+  - Age/File date prefieren `downloaded_at` del sidecar (columna Meta ✓).
+  - `--verify-checksum` en scan/check; mismatch → ERROR sin borrar la ISO.
+  - Post-`download` sisou: sella ISOs modificadas en los últimos 120 min.
+- Módulo `meta.py`.
+
+### Cambiado
+
+- Versión 0.6.0 → 0.7.0.
+- Plan: Fase 4 done; siguiente Fase 5 (multi-LTS).
+
 ## [0.6.0] — 2026-07-25
 
 ### Añadido

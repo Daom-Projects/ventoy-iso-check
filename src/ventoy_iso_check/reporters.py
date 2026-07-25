@@ -89,12 +89,15 @@ def print_table(
     if show_dates:
         table.add_column("File date", justify="center")
         table.add_column("Age", justify="right")
+    table.add_column("Meta", justify="center")
     table.add_column("Size", justify="right")
     table.add_column("Managed", justify="center")
     if show_urls:
         table.add_column("URL / page", overflow="fold")
 
     stale_count = 0
+    meta_count = 0
+    bad_sha = 0
     for it in rows:
         style = STATUS_STYLE.get(it.status, "")
         status_text = Text(it.status.value, style=style)
@@ -107,7 +110,10 @@ def print_table(
         ]
         if show_dates:
             age_style = _age_style(it.age_days, stale_days=stale_days)
-            row.append(Text(it.file_date_str(), style=age_style))
+            date_label = it.file_date_str()
+            if it.date_source == "meta":
+                date_label = f"{date_label}*"
+            row.append(Text(date_label, style=age_style))
             row.append(Text(it.age_label(), style=age_style))
             if (
                 stale_days is not None
@@ -115,6 +121,16 @@ def print_table(
                 and it.age_days >= stale_days
             ):
                 stale_count += 1
+        meta_txt = it.meta_label()
+        if it.has_meta:
+            meta_count += 1
+        if it.checksum_ok is False:
+            bad_sha += 1
+            row.append(Text(meta_txt, style="bold red"))
+        elif it.has_meta:
+            row.append(Text(meta_txt, style="green"))
+        else:
+            row.append(Text(meta_txt, style="dim"))
         row.append(format_size(it.size))
         row.append(it.managed_by)
         if show_urls:
@@ -133,11 +149,14 @@ def print_table(
     extra = ""
     if show_dates and stale_days is not None:
         extra = f"  stale(≥{stale_days}d)={stale_count}"
+    extra += f"  meta={meta_count}"
+    if bad_sha:
+        extra += f"  bad_sha={bad_sha}"
     console.print(f"[bold]Resumen:[/bold] total={len(items)}  {summary}{extra}")
     if show_dates:
         console.print(
-            "[dim]File date = mtime del archivo en el disco "
-            "(suele ser copia/descarga). En algunos FS no hay birthtime.[/dim]"
+            "[dim]File date: * = sidecar .meta.json (downloaded_at); "
+            "si no, mtime/birthtime del FS. Meta: ✓ = sidecar presente.[/dim]"
         )
 
 
