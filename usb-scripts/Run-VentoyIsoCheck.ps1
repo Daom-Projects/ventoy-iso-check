@@ -4,25 +4,21 @@
   Lanza ventoy-iso-check desde el disco Ventoy.
 
 .DESCRIPTION
-  1) Intenta Docker montando la unidad del USB en /ventoy.
-  2) Si el montaje queda vacio (caso tipico con USB + Docker Desktop),
-     usa WSL + uv con /mnt/<letra> (sin montar volumen en Docker).
-
+  Auto: intenta Docker; si el USB no se monta (total=0), usa WSL + uv.
   Sin argumentos: menu interactivo.
 
 .EXAMPLE
   .\Run-VentoyIsoCheck.ps1
-  .\Run-VentoyIsoCheck.ps1 -Engine Docker
   .\Run-VentoyIsoCheck.ps1 -Engine Wsl
-  .\Run-VentoyIsoCheck.ps1 -Drive F scan
+  .\Run-VentoyIsoCheck.ps1 -Engine Docker
   .\Run-VentoyIsoCheck.ps1 -Rebuild
+  .\Run-VentoyIsoCheck.ps1 -Drive F
 #>
 [CmdletBinding()]
 param(
     [switch]$Menu,
     [switch]$Rebuild,
     [switch]$NoMenu,
-    # Auto | Docker | Wsl
     [ValidateSet("Auto", "Docker", "Wsl")]
     [string]$Engine = "Auto",
     [string]$Drive = "",
@@ -40,7 +36,7 @@ function Write-Err([string]$msg)  { Write-Host "[ventoy-iso-check] $msg" -Foregr
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# --- Repo ---
+# --- Repo (carpeta con Dockerfile) ---
 $RepoRoot = $null
 if (Test-Path (Join-Path $ScriptDir "Dockerfile")) {
     $RepoRoot = $ScriptDir
@@ -53,7 +49,7 @@ if (Test-Path (Join-Path $ScriptDir "Dockerfile")) {
     exit 2
 }
 
-# --- Letra de unidad ---
+# --- Letra de unidad del USB ---
 if ($Drive) {
     $DriveLetter = $Drive.Trim().TrimEnd(':').TrimEnd('\').ToUpper()
 } else {
@@ -67,7 +63,7 @@ if (-not $DriveLetter -or $DriveLetter.Length -ne 1) {
 }
 $WindowsRoot = "${DriveLetter}:\"
 if (-not (Test-Path $WindowsRoot)) {
-    Write-Err "La unidad ${DriveLetter}: no existe. Conecta el USB o usa -Drive F"
+    Write-Err "La unidad ${DriveLetter}: no existe. Usa -Drive F si el USB es otra letra."
     exit 2
 }
 
@@ -75,7 +71,7 @@ Write-Info "Repo:   $RepoRoot"
 Write-Info "Ventoy: $WindowsRoot"
 Write-Info "Engine: $Engine"
 
-# --- Args CLI ---
+# --- Argumentos del CLI ---
 if ($Menu) {
     $containerArgs = @("menu")
 } elseif ($CliArgs -and $CliArgs.Count -gt 0) {
@@ -85,89 +81,105 @@ if ($Menu) {
 } else {
     $containerArgs = @("menu")
 }
-$argsLine = ($containerArgs -join " ")
+# Escapar para bash single-line: comillas simples en args se duplican
+function ConvertTo-BashArgs([string[]]$Parts) {
+    $out = @()
+    foreach ($p in $Parts) {
+        if ($p -match '[\s"$`]') {
+            $esc = $p -replace "'", "'\''"
+            $out += "'$esc'"
+        } else {
+            $out += $p
+        }
+    }
+    return ($out -join " ")
+}
+$argsLine = ConvertTo-BashArgs $containerArgs
+$argsLineDocker = $containerArgs  # array for docker
 
-# Host tiene ISOs?
 $hostIso = @(Get-ChildItem -Path (Join-Path $WindowsRoot "Linux") -Filter *.iso -ErrorAction SilentlyContinue).Count
 $hostIso += @(Get-ChildItem -Path (Join-Path $WindowsRoot "Herramientas") -Filter *.iso -ErrorAction SilentlyContinue).Count
-Write-Info "Host:   $hostIso ISO(s) vistas en Linux/ + Herramientas/"
+Write-Info "Host:   $hostIso ISO(s) en Linux/ + Herramientas/"
 
 # =====================================================================
-# Motor WSL + uv (fiable con USB; no depende de File sharing de Docker)
+# WSL + uv  (no monta Docker; usa /mnt/<letra>)
 # =====================================================================
 function Invoke-WslEngine {
     if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
         Write-Err "WSL no esta instalado."
         return 3
     }
+
     $letter = $DriveLetter.ToLower()
     $mnt = "/mnt/$letter"
-    Write-Info "WSL: comprobando $mnt …"
 
-    $check = & wsl -e bash -lc "test -d '$mnt/Linux' && ls '$mnt'/Linux/*.iso 2>/dev/null | wc -l" 2>&1
+    Write-Info "WSL: comprobando $mnt ..."
+    $check = & wsl -e bash -lc "ls $mnt/Linux/*.iso 2>/dev/null | wc -l"
     $n = 0
     [void][int]::TryParse(("$check").Trim(), [ref]$n)
     if ($n -lt 1) {
-        Write-Err "WSL no ve ISOs en $mnt/Linux"
-        Write-Err "En WSL: ls $mnt/Linux"
-        Write-Err "Si falla, monta la unidad o reinicia WSL: wsl --shutdown"
+        Write-Err "WSL no ve ISOs en $mnt/Linux (cuento=$n)."
+        Write-Err "Prueba: wsl -e ls $mnt/Linux"
+        Write-Err "Si falla: wsl --shutdown  y vuelve a abrir la terminal."
         return 2
     }
-    Write-Info "WSL: $n ISO(s) en $mnt/Linux — OK"
+    Write-Info "WSL: $n ISO(s) en $mnt/Linux"
 
-    # Repo en USB o en home de WSL
-    $repoWslCandidates = @(
-        "$mnt/Scripts/ventoy-iso-check",
-        "/mnt/$letter/Scripts/ventoy-iso-check"
-    )
-    # Convertir ruta Windows del repo a /mnt/x/...
-    if ($RepoRoot -match '^[A-Za-z]:\\') {
-        $rl = $RepoRoot.Substring(0, 1).ToLower()
-        $rp = ($RepoRoot.Substring(2) -replace '\\', '/')
-        $repoWslCandidates = @("/mnt/$rl/$rp") + $repoWslCandidates
+    # Ruta del repo en WSL
+    $repoWsl = $null
+    if ($RepoRoot -match '^([A-Za-z]):\\') {
+        $rl = $Matches[1].ToLower()
+        $rest = $RepoRoot.Substring(2) -replace '\\', '/'
+        $repoWsl = "/mnt/$rl/$rest"
+    } else {
+        $repoWsl = "$mnt/Scripts/ventoy-iso-check"
     }
-    $repoWslCandidates += @(
-        "$HOME/projects/ventoy-iso-check",
-        "~/projects/ventoy-iso-check"
-    )
 
-    $bashArgs = $argsLine -replace '"', '\"'
-    $script = @"
-set -e
-export VENTOY_ROOT='$mnt'
-REPO=''
-for c in $($repoWslCandidates | ForEach-Object { "'$_'" }) ; do
-  # expand ~
-  c=`${c/#\~/$HOME}
-  if [ -f "`$c/pyproject.toml" ]; then REPO=`$c; break; fi
-done
-if [ -z "`$REPO" ]; then
-  echo '[ventoy-iso-check] No se encontro el repo en WSL (pyproject.toml).' >&2
-  echo '  Clona o copia en: $mnt/Scripts/ventoy-iso-check' >&2
-  echo '  o: ~/projects/ventoy-iso-check' >&2
+    # Cadena bash SOLO con comillas simples de PowerShell (no se interpreta for/if)
+    # Placeholders: __MNT__ __REPO__ __ARGS__
+    $bashTemplate = 'set -e
+export VENTOY_ROOT="__MNT__"
+REPO="__REPO__"
+if [ ! -f "$REPO/pyproject.toml" ]; then
+  for c in "__MNT__/Scripts/ventoy-iso-check" "$HOME/projects/ventoy-iso-check"; do
+    if [ -f "$c/pyproject.toml" ]; then REPO="$c"; break; fi
+  done
+fi
+if [ ! -f "$REPO/pyproject.toml" ]; then
+  echo "[ventoy-iso-check] No pyproject.toml en $REPO" >&2
   exit 2
 fi
-echo "[ventoy-iso-check] WSL repo: `$REPO"
-echo "[ventoy-iso-check] VENTOY_ROOT=`$VENTOY_ROOT"
-cd "`$REPO"
+echo "[ventoy-iso-check] WSL repo=$REPO VENTOY_ROOT=$VENTOY_ROOT"
+cd "$REPO"
+export PATH="$HOME/.local/bin:$PATH"
 if ! command -v uv >/dev/null 2>&1; then
-  echo '[ventoy-iso-check] uv no esta en WSL. Instalando…' >&2
+  echo "[ventoy-iso-check] Instalando uv..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="`$HOME/.local/bin:`$PATH"
+  export PATH="$HOME/.local/bin:$PATH"
 fi
-export PATH="`$HOME/.local/bin:`$PATH"
-uv sync --quiet 2>/dev/null || uv sync
-exec uv run ventoy-iso-check $bashArgs
-"@
+uv sync
+exec uv run ventoy-iso-check __ARGS__
+'
 
-    Write-Info "Lanzando via WSL + uv (VENTOY_ROOT=$mnt)…"
-    # -e no inicia login shell; PATH de uv se exporta en el script
-    & wsl -e bash -lc $script
-    return $LASTEXITCODE
+    $bash = $bashTemplate.Replace('__MNT__', $mnt).Replace('__REPO__', $repoWsl).Replace('__ARGS__', $argsLine)
+
+    # Escribir script temporal en el USB (WSL lo ve en /mnt/e/...) para evitar problemas de comillas
+    $tmpWin = Join-Path $WindowsRoot "Scripts\_vic_run.sh"
+    $tmpWsl = "$mnt/Scripts/_vic_run.sh"
+    # LF only
+    $bashLf = $bash -replace "`r`n", "`n" -replace "`r", "`n"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($tmpWin, $bashLf, $utf8NoBom)
+
+    Write-Info "WSL+uv: bash $tmpWsl"
+    & wsl -e bash $tmpWsl
+    $code = $LASTEXITCODE
+    Remove-Item -Force $tmpWin -ErrorAction SilentlyContinue
+    return $code
 }
 
 # =====================================================================
-# Motor Docker
+# Docker
 # =====================================================================
 function Ensure-DockerImage {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -186,8 +198,8 @@ function Ensure-DockerImage {
 
     if ($exists -and -not $need) {
         $probeOut = & docker run --rm $Image -V 2>&1 | Out-String
-        if ($LASTEXITCODE -ne 0 -or $probeOut -match 'sh\\r' -or $probeOut -match "sh`r") {
-            Write-Warn "Imagen rota; reconstruyendo…"
+        if ($LASTEXITCODE -ne 0 -or $probeOut -match 'sh\\r') {
+            Write-Warn "Imagen rota; reconstruyendo..."
             $need = $true
         } else {
             Write-Info "Imagen OK: $($probeOut.Trim())"
@@ -195,15 +207,17 @@ function Ensure-DockerImage {
     }
 
     if ($need) {
-        Write-Info "docker build (puede tardar)…"
+        Write-Info "docker build (puede tardar)..."
         Push-Location $RepoRoot
         try {
             docker build --no-cache -t $Image .
             if ($LASTEXITCODE -ne 0) { return $false }
-        } finally { Pop-Location }
+        } finally {
+            Pop-Location
+        }
         $v = & docker run --rm $Image -V 2>&1 | Out-String
         if ($LASTEXITCODE -ne 0) {
-            Write-Err "Build OK pero -V falla: $v"
+            Write-Err "Build listo pero -V falla: $v"
             return $false
         }
         Write-Info "Build OK: $($v.Trim())"
@@ -212,22 +226,15 @@ function Ensure-DockerImage {
 }
 
 function Test-DockerMount {
-    param([string[]]$DockerVolArgs)
-    # Cuenta entradas en /ventoy y si hay .iso en subdirs de primer nivel
-    $cmd = 'echo ENTRIES:$(ls -1 /ventoy 2>/dev/null | wc -l); echo ISOS:$(find /ventoy -maxdepth 3 -type f \( -iname "*.iso" -o -iname "*.img" \) 2>/dev/null | wc -l); ls -1 /ventoy 2>/dev/null | head -8'
-    $out = & docker run --rm --entrypoint /bin/sh @DockerVolArgs $Image -c $cmd 2>&1 | Out-String
+    param([string[]]$VolArgs)
+    $cmd = 'echo ISOS:$(find /ventoy -maxdepth 3 -type f \( -iname "*.iso" -o -iname "*.img" \) 2>/dev/null | wc -l); echo ENTRIES:$(ls -1 /ventoy 2>/dev/null | wc -l); ls -1 /ventoy 2>/dev/null | head -6'
+    $out = & docker run --rm --entrypoint /bin/sh @VolArgs $Image -c $cmd 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
-        return @{ Ok = $false; Detail = $out; Isos = 0; Entries = 0 }
+        return @{ Ok = $false; Isos = 0; Detail = $out }
     }
-    $entries = 0; $isos = 0
-    if ($out -match 'ENTRIES:(\d+)') { $entries = [int]$Matches[1] }
+    $isos = 0
     if ($out -match 'ISOS:(\d+)') { $isos = [int]$Matches[1] }
-    return @{
-        Ok = ($isos -ge 1 -or $entries -ge 3)
-        Detail = $out.Trim()
-        Isos = $isos
-        Entries = $entries
-    }
+    return @{ Ok = ($isos -ge 1); Isos = $isos; Detail = $out.Trim() }
 }
 
 function Invoke-DockerEngine {
@@ -236,56 +243,46 @@ function Invoke-DockerEngine {
     $letter = $DriveLetter
     $low = $DriveLetter.ToLower()
 
-    # Candidatos de montaje (orden: los que suelen funcionar en Docker Desktop)
     $candidates = @(
-        @{ Label = "--mount bind E:/";  Args = @("--mount", "type=bind,source=${letter}:/,target=/ventoy") },
-        @{ Label = "--mount bind E:\";  Args = @("--mount", "type=bind,source=${letter}:\,target=/ventoy") },
-        @{ Label = "-v E:/:/ventoy";    Args = @("-v", "${letter}:/:/ventoy") },
-        @{ Label = "-v E:\:/ventoy";    Args = @("-v", "${letter}:\:/ventoy") },
-        @{ Label = "-v //e/:/ventoy";   Args = @("-v", "//${low}/:/ventoy") }
+        @{ Label = "mount E:/";   Args = @("--mount", "type=bind,source=${letter}:/,target=/ventoy") },
+        @{ Label = "mount E:\";   Args = @("--mount", "type=bind,source=${letter}:\,target=/ventoy") },
+        @{ Label = "-v E:/:/";    Args = @("-v", "${letter}:/:/ventoy") },
+        @{ Label = "-v E:\:/";    Args = @("-v", "${letter}:\:/ventoy") },
+        @{ Label = "-v //e/";     Args = @("-v", "//${low}/:/ventoy") }
     )
 
     $chosen = $null
     foreach ($c in $candidates) {
-        Write-Info "Probando montaje Docker: $($c.Label)"
-        $r = Test-DockerMount -DockerVolArgs $c.Args
+        Write-Info "Probando Docker: $($c.Label)"
+        $r = Test-DockerMount -VolArgs $c.Args
         if ($r.Ok) {
-            Write-Info "Montaje OK ($($r.Isos) ISO(s), $($r.Entries) entradas en /ventoy)"
-            Write-Info $r.Detail
+            Write-Info "Montaje OK ($($r.Isos) ISO(s))"
             $chosen = $c
             break
-        } else {
-            Write-Warn "  no sirve (isos=$($r.Isos) entries=$($r.Entries))"
-            if ($r.Detail -and $r.Detail.Length -lt 400) {
-                Write-Warn "  $($r.Detail -replace "`r?`n", ' | ')"
-            }
         }
+        Write-Warn "  vacio o error (isos=$($r.Isos))"
     }
 
     if (-not $chosen) {
-        Write-Err "Docker no puede ver las ISOs del USB (montaje vacio)."
-        Write-Err "Causas tipicas:"
-        Write-Err "  1) Docker Desktop -> Settings -> Resources -> File sharing -> marca ${letter}:"
-        Write-Err "  2) Unidades extraibles a veces no se comparten bien con el backend WSL2"
-        Write-Err "Solucion recomendada: usar WSL+uv (este script lo hace en -Engine Auto)"
+        Write-Err "Docker no ve ISOs en el USB (montaje vacio). Tipico con unidades extraibles."
         return 4
     }
 
-    Write-Info "docker run --rm -it $($chosen.Label) $Image $argsLine"
-    $dockerArgs = @("run", "--rm", "-it", "-e", "VENTOY_ROOT=/ventoy") + $chosen.Args + @($Image) + $containerArgs
+    Write-Info "docker run -it $($chosen.Label) $Image $($argsLineDocker -join ' ')"
+    $dockerArgs = @("run", "--rm", "-it", "-e", "VENTOY_ROOT=/ventoy") + $chosen.Args + @($Image) + $argsLineDocker
     & docker @dockerArgs
     return $LASTEXITCODE
 }
 
 # =====================================================================
-# Seleccion de motor
+# Seleccion
 # =====================================================================
 $code = 1
 switch ($Engine) {
     "Docker" {
         $code = Invoke-DockerEngine
         if ($code -eq 4) {
-            Write-Warn "Fallback automatico a WSL+uv…"
+            Write-Warn "Fallback a WSL+uv..."
             $code = Invoke-WslEngine
         }
     }
@@ -293,21 +290,19 @@ switch ($Engine) {
         $code = Invoke-WslEngine
     }
     default {
-        # Auto: si Docker monta bien, Docker; si no, WSL+uv
+        $dockerReady = $false
         if (Get-Command docker -ErrorAction SilentlyContinue) {
             docker info 1>$null 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                $code = Invoke-DockerEngine
-                if ($code -eq 4) {
-                    Write-Warn "Docker no monta el USB. Cambiando a WSL + uv…"
-                    $code = Invoke-WslEngine
-                }
-            } else {
-                Write-Warn "Docker no responde; usando WSL + uv…"
+            $dockerReady = ($LASTEXITCODE -eq 0)
+        }
+        if ($dockerReady) {
+            $code = Invoke-DockerEngine
+            if ($code -eq 4) {
+                Write-Warn "Docker no monta el USB. Usando WSL+uv..."
                 $code = Invoke-WslEngine
             }
         } else {
-            Write-Warn "Sin Docker; usando WSL + uv…"
+            Write-Warn "Docker no disponible. Usando WSL+uv..."
             $code = Invoke-WslEngine
         }
     }
@@ -315,7 +310,9 @@ switch ($Engine) {
 
 if ($code -ne 0) {
     Write-Warn "exit=$code"
-    Write-Warn "Prueba manual WSL:"
-    Write-Warn "  wsl -e bash -lc `"export VENTOY_ROOT=/mnt/$($DriveLetter.ToLower()); cd /mnt/$($DriveLetter.ToLower())/Scripts/ventoy-iso-check && uv run ventoy-iso-check menu`""
+    Write-Warn "Manual WSL:"
+    $L = $DriveLetter.ToLower()
+    Write-Warn "  wsl -e bash -lc `"export VENTOY_ROOT=/mnt/$L; cd /mnt/$L/Scripts/ventoy-iso-check && uv run ventoy-iso-check menu`""
 }
+
 exit $code
