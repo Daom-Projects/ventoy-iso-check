@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import csv
 import html
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ventoy_iso_check import __version__
 from ventoy_iso_check.models import IsoItem
 from ventoy_iso_check.reporters import format_size
-
 
 CSV_FIELDS = [
     "relpath",
@@ -74,7 +73,7 @@ def write_html(
     ventoy_section: str | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     counts: dict[str, int] = {}
     for it in items:
         counts[it.status.value] = counts.get(it.status.value, 0) + 1

@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import logging
 import re
+import tarfile
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
+
+if TYPE_CHECKING:
+    from rich.console import Console
 
 log = logging.getLogger(__name__)
 
@@ -205,3 +211,148 @@ def format_ventoy_html(st: VentoyStatus) -> str:
     if st.note:
         rows.append(f"<p>{html_mod.escape(st.note)}</p>")
     return "\n".join(rows)
+
+
+def _github_release_json() -> dict:
+    with httpx.Client(
+        headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"},
+        follow_redirects=True,
+        timeout=60.0,
+    ) as client:
+        r = client.get(GITHUB_LATEST)
+        r.raise_for_status()
+        return r.json()
+
+
+def _pick_asset(assets: list[dict], platform: str) -> tuple[str, str] | None:
+    """Return (name, url) for linux tar.gz or windows zip."""
+    platform = platform.lower()
+    for a in assets:
+        name = a.get("name") or ""
+        url = a.get("browser_download_url") or ""
+        if not url:
+            continue
+        low = name.lower()
+        if platform == "linux" and low.endswith("-linux.tar.gz"):
+            return name, url
+        if platform == "windows" and low.endswith("-windows.zip"):
+            return name, url
+    return None
+
+
+def _download_file(
+    url: str,
+    dest: Path,
+    *,
+    console: Console | None = None,
+) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    try:
+        with httpx.Client(
+            headers={"User-Agent": USER_AGENT},
+            follow_redirects=True,
+            timeout=120.0,
+        ) as client:
+            with client.stream("GET", url) as r:
+                r.raise_for_status()
+                total = int(r.headers.get("content-length") or 0)
+                done = 0
+                with tmp.open("wb") as f:
+                    for chunk in r.iter_bytes(1024 * 256):
+                        f.write(chunk)
+                        done += len(chunk)
+                        if console and total:
+                            pct = 100.0 * done / total
+                            console.print(
+                                f"  … {done // (1024 * 1024)} MiB / "
+                                f"{total // (1024 * 1024)} MiB ({pct:.0f}%)",
+                                end="\r",
+                            )
+        tmp.replace(dest)
+        if console:
+            console.print()
+    except Exception:
+        if tmp.is_file():
+            tmp.unlink(missing_ok=True)
+        raise
+
+
+def _extract_archive(archive: Path, dest_dir: Path) -> Path:
+    """Extract Ventoy package; return top-level extracted directory if found."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    before = {p.name for p in dest_dir.iterdir()} if dest_dir.is_dir() else set()
+
+    if archive.name.endswith(".tar.gz") or archive.suffixes[-2:] == [".tar", ".gz"]:
+        with tarfile.open(archive, "r:gz") as tf:
+            tf.extractall(dest_dir, filter="data")
+    elif archive.suffix.lower() == ".zip":
+        with zipfile.ZipFile(archive, "r") as zf:
+            zf.extractall(dest_dir)
+    else:
+        raise ValueError(f"Formato no soportado: {archive.name}")
+
+    after = {p.name for p in dest_dir.iterdir()}
+    new_names = after - before - {archive.name}
+    # Prefer ventoy-X.Y.Z directory
+    for name in sorted(new_names):
+        p = dest_dir / name
+        if p.is_dir() and name.lower().startswith("ventoy"):
+            return p
+    if new_names:
+        return dest_dir / sorted(new_names)[0]
+    return dest_dir
+
+
+def download_ventoy_release(
+    dest_dir: Path,
+    *,
+    platforms: list[str] | None = None,
+    keep_archive: bool = True,
+    console: Console | None = None,
+) -> list[Path]:
+    """Download latest Ventoy release package(s) into dest_dir (e.g. Bootloaders/).
+
+    Does **not** install/update the USB bootloader (MBR/ESP). Only fetches
+    official packages so the user can run Ventoy2Disk from them.
+
+    Returns paths to extracted dirs and/or archives.
+    """
+    platforms = platforms or ["linux"]
+    data = _github_release_json()
+    tag = _normalize_ver(data.get("tag_name") or "")
+    assets = data.get("assets") or []
+    if not tag:
+        raise RuntimeError("GitHub release sin tag_name")
+
+    dest_dir = dest_dir.resolve()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    results: list[Path] = []
+
+    for plat in platforms:
+        picked = _pick_asset(assets, plat)
+        if not picked:
+            raise RuntimeError(f"No hay asset {plat} en el release {tag}")
+        name, url = picked
+        if console:
+            console.print(f"[bold]Descargando[/bold] {name} …")
+        archive = dest_dir / name
+        if archive.is_file() and archive.stat().st_size > 1_000_000:
+            if console:
+                console.print(f"[dim]Ya existe, reutilizando:[/dim] {archive.name}")
+        else:
+            _download_file(url, archive, console=console)
+
+        if console:
+            console.print(f"[bold]Extrayendo[/bold] en {dest_dir} …")
+        extracted = _extract_archive(archive, dest_dir)
+        results.append(extracted)
+        if keep_archive:
+            results.append(archive)
+        else:
+            archive.unlink(missing_ok=True)
+        if console:
+            console.print(
+                f"[green]Ventoy {tag} ({plat})[/green] → {extracted}"
+            )
+    return results

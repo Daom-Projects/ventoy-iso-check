@@ -3,6 +3,26 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [1.0.0] — 2026-07-25
+
+### Añadido
+
+- **Menú interactivo** (Rich): `ventoy-iso-check` sin args en TTY, `menu`, o `-m`.
+  Cubre scan, check, filtros, enlaces, export, Ventoy, suggest, sisou, meta.
+- Dependencia explícita **click** (base de Typer) + UX Rich en menú y tablas.
+- **Ruff** en dev + job CI (`ruff check`) + `make lint` / `make format`.
+- **`ventoy --fetch`**: descarga/extrae release oficial a `Bootloaders/`
+  (linux tar.gz + windows zip). No toca MBR/ESP; usar Ventoy2Disk después.
+- Catálogo + resolvers para distros de taller aún no en el USB:
+  Kubuntu, Manjaro (XFCE/KDE), openSUSE Leap/Tumbleweed, Rocky, AlmaLinux,
+  Alpine, MX Linux, Super Grub2 Disk, Garuda (+ ya existentes Debian/Arch/GParted/Memtest).
+
+### Cambiado
+
+- Versión 0.12.0 → **1.0.0** (hito: roadmap de fases + app de consola completa).
+- Sin subcomando en TTY: menú en lugar de solo `--help`.
+- Documentación de usuario, agentes, Windows y plan actualizadas.
+
 ## [0.12.0] — 2026-07-25
 
 ### Añadido

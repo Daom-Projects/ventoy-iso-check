@@ -60,13 +60,50 @@ uv sync
 $env:VENTOY_ROOT = "E:\"
 
 uv run ventoy-iso-check -V
+# Menú interactivo (si la consola es TTY)
+uv run ventoy-iso-check
+# Flags
 uv run ventoy-iso-check scan
 uv run ventoy-iso-check check --only-outdated --urls
 uv run ventoy-iso-check scan --only-stale --stale-days 90 --sort age
 uv run ventoy-iso-check download --dry-run
+uv run ventoy-iso-check ventoy
+uv run ventoy-iso-check ventoy --fetch --platform windows
 ```
 
 `download` real en Windows nativo usa `uv tool run --python 3.12 sisou@latest …` (igual que en WSL).
+
+---
+
+## Actualizar el bootloader Ventoy (1.1.x → latest)
+
+`ventoy-iso-check` **no reescribe** el MBR/ESP. Solo comprueba la versión y puede **descargar el paquete oficial**.
+
+### 1) Descargar el paquete (WSL o PowerShell)
+
+```powershell
+# Desde WSL (recomendado si el repo vive ahí)
+wsl -e bash -lc "cd ~/projects/ventoy-iso-check && uv run ventoy-iso-check ventoy /mnt/e --fetch --platform both"
+```
+
+Queda en `E:\Bootloaders\`:
+
+- `ventoy-1.1.17\` (extraído; incluye `Ventoy2Disk.exe` y `Ventoy2Disk.sh`)
+- `ventoy-1.1.17-windows.zip` / `ventoy-1.1.17-linux.tar.gz`
+
+### 2) Actualizar el USB con Ventoy2Disk (Windows)
+
+1. Abre **como administrador**: `E:\Bootloaders\ventoy-1.1.17\Ventoy2Disk.exe`
+2. Selecciona el disco Ventoy (cuidado con la letra de unidad).
+3. Pulsa **Update** (no Install: Install formatea).
+4. Espera a que termine. Las ISOs en la partición de datos **no se borran**.
+
+### 3) Verificar
+
+```powershell
+wsl -e bash -lc "cd ~/projects/ventoy-iso-check && uv run ventoy-iso-check ventoy /mnt/e"
+# status: OK
+```
 
 ---
 

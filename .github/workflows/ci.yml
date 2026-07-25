@@ -34,16 +34,21 @@ jobs:
       - name: Sync dependencies (frozen lock)
         run: uv sync --frozen --all-groups
 
+      - name: Ruff check
+        run: uv run ruff check src tests
+
       - name: Pytest
         run: uv run pytest -q --tb=short
 
       - name: CLI smoke (sin disco)
         run: |
           uv run ventoy-iso-check -V
+          # --help evita el menú interactivo
           uv run ventoy-iso-check --help
           uv run ventoy-iso-check scan --help
           uv run ventoy-iso-check export --help
           uv run ventoy-iso-check ventoy --help
+          uv run ventoy-iso-check menu --help
 
   docker:
     name: Docker build

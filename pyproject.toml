@@ -1,15 +1,16 @@
 [project]
 name = "ventoy-iso-check"
-version = "0.12.0"
-description = "Inventario y comprobación de ISOs desactualizadas en un disco Ventoy (híbrido con SuperISOUpdater/sisou)."
+version = "1.0.0"
+description = "Inventario y comprobación de ISOs desactualizadas en un disco Ventoy (híbrido con SuperISOUpdater/sisou). CLI Typer/Click + menú interactivo Rich."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "Diego Ojeda", email = "daom89@gmail.com" }
 ]
 requires-python = ">=3.12"
-keywords = ["ventoy", "iso", "updater", "linux", "wsl", "docker"]
+keywords = ["ventoy", "iso", "updater", "linux", "wsl", "docker", "rich", "cli"]
 dependencies = [
+    "click>=8.1.0",
     "httpx>=0.28.1",
     "packaging>=26.2",
     "pyyaml>=6.0.3",
@@ -33,4 +34,31 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
     "respx>=0.23.1",
+    "ruff>=0.12.0",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "W",   # warnings
+]
+ignore = [
+    "E501",  # line length: confía en formateo gradual; tablas CLI largas
+    "B008",  # function calls in defaults (Typer Option/Argument)
+    "UP042",  # str, Enum OK (JSON/serialización); StrEnum opcional
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ventoy_iso_check"]
+
+[tool.ruff.format]
+quote-style = "double"

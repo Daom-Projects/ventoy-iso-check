@@ -1,6 +1,6 @@
 # Documentación interna
 
-Índice de docs del proyecto **ventoy-iso-check** (v0.12.0).
+Índice de docs del proyecto **ventoy-iso-check** (v1.0.0).
 
 | Documento | Audiencia | Contenido |
 |-----------|-----------|-----------|

@@ -13,7 +13,6 @@ from ventoy_iso_check.models import (
     utc_now,
 )
 
-
 SKIP_DIR_DEFAULTS = {
     "$RECYCLE.BIN",
     "System Volume Information",

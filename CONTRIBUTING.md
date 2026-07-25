@@ -18,10 +18,12 @@ Sigue **[AGENTS.md](./AGENTS.md)** y ejecuta **una fase** de **[docs/PHASED_PLAN
 ```bash
 uv sync
 uv run pytest -q
+uv run ruff check src tests
 uv run ventoy-iso-check -V
 uv run ventoy-iso-check scan --help
 # Con volumen montado (opcional):
 # uv run ventoy-iso-check scan "$VENTOY_ROOT" --sort age
+# uv run ventoy-iso-check          # menú interactivo en TTY
 ```
 
 Si tocas Docker:
@@ -35,7 +37,7 @@ docker run --rm ventoy-iso-check:local -V
 
 En cada push/PR a `main`, GitHub Actions (`.github/workflows/ci.yml`):
 
-1. `uv sync --frozen` + `pytest` + smoke CLI (sin montar discos).
+1. `uv sync --frozen` + `ruff check` + `pytest` + smoke CLI (sin montar discos).
 2. `docker build` + smoke de la imagen.
 
 No hace falta un USB Ventoy en CI.

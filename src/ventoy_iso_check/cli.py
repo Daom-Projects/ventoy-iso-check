@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -11,16 +11,18 @@ from ventoy_iso_check import __version__
 from ventoy_iso_check.cache import ResolveCache, default_cache_file
 from ventoy_iso_check.checker import DEFAULT_RESOLVE_WORKERS, run_check
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
+from ventoy_iso_check.export import write_csv, write_html
 from ventoy_iso_check.filters import filter_items
+from ventoy_iso_check.menu import run_menu
 from ventoy_iso_check.meta import seal_tree, write_meta_for_iso
 from ventoy_iso_check.paths import default_ventoy_root, project_root
 from ventoy_iso_check.policy import UpgradePolicy
-from ventoy_iso_check.export import write_csv, write_html
 from ventoy_iso_check.reporters import print_table, write_json, write_links_markdown
 from ventoy_iso_check.sisou_bridge import default_sisou_toml, run_sisou
 from ventoy_iso_check.suggest import format_suggestions, suggest_unsupported
 from ventoy_iso_check.ventoy_info import (
     check_ventoy,
+    download_ventoy_release,
     format_ventoy_console,
     format_ventoy_html,
 )
@@ -29,12 +31,14 @@ app = typer.Typer(
     name="ventoy-iso-check",
     help=(
         "Inventario y verificación de ISOs en un disco Ventoy. "
-        "Por defecto solo reporta; usa `download` para actualizar con sisou. "
+        "Sin argumentos en un TTY abre el menú interactivo (Rich). "
+        "Todos los subcomandos y flags siguen disponibles. "
         "Raíz por defecto: $VENTOY_ROOT, luego /ventoy, luego /mnt/e."
     ),
     add_completion=False,
-    no_args_is_help=True,
+    no_args_is_help=False,
     invoke_without_command=True,
+    rich_markup_mode="rich",
 )
 console = Console()
 
@@ -54,7 +58,7 @@ def _display_opts(
     *,
     show_urls: bool,
     no_dates: bool,
-    stale_days: Optional[int],
+    stale_days: int | None,
     sort_by: str,
 ) -> dict:
     return {
@@ -69,7 +73,7 @@ def _build_cache(
     *,
     no_cache: bool,
     refresh: bool,
-    cache_dir: Optional[Path],
+    cache_dir: Path | None,
     ttl_hours: float,
 ) -> ResolveCache | None:
     if no_cache:
@@ -89,18 +93,43 @@ def main_callback(
     version: bool = typer.Option(
         False, "--version", "-V", help="Mostrar versión y salir."
     ),
+    menu: bool = typer.Option(
+        False,
+        "--menu",
+        "-m",
+        help="Abrir menú interactivo (también es el default sin subcomando en TTY).",
+    ),
 ) -> None:
     if version:
         console.print(f"ventoy-iso-check {__version__}")
         raise typer.Exit(0)
-    if ctx.invoked_subcommand is None:
-        console.print(ctx.get_help())
-        raise typer.Exit(0)
+    if ctx.invoked_subcommand is not None:
+        return
+    # Sin subcomando: menú interactivo en TTY; si no, ayuda.
+    import sys
+
+    if menu or (sys.stdin.isatty() and sys.stdout.isatty()):
+        code = run_menu()
+        raise typer.Exit(code)
+    console.print(ctx.get_help())
+    raise typer.Exit(0)
+
+
+@app.command("menu")
+def menu_cmd(
+    root: Path | None = typer.Argument(
+        None,
+        help="Raíz del volumen Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
+    ),
+) -> None:
+    """Menú interactivo (Rich): scan, check, export, Ventoy, meta, sisou, …"""
+    code = run_menu(root)
+    raise typer.Exit(code)
 
 
 @app.command("scan")
 def scan_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         help="Raíz del volumen Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
         exists=False,
@@ -108,19 +137,19 @@ def scan_cmd(
         dir_okay=True,
         readable=True,
     ),
-    catalog: Optional[Path] = typer.Option(
+    catalog: Path | None = typer.Option(
         None, "--catalog", "-c", help="Ruta a catalog.yaml"
     ),
     deep: bool = typer.Option(
         False, "--deep", help="Incluir árboles pesados (p. ej. MediCat)."
     ),
-    json_out: Optional[Path] = typer.Option(
+    json_out: Path | None = typer.Option(
         None, "--json", help="Escribir inventario a JSON."
     ),
     no_dates: bool = typer.Option(
         False, "--no-dates", help="Ocultar columnas de fecha/edad del archivo."
     ),
-    stale_days: Optional[int] = typer.Option(
+    stale_days: int | None = typer.Option(
         180,
         "--stale-days",
         help="Resaltar ISOs con mtime ≥ N días (default 180). 0 = desactivar.",
@@ -182,7 +211,7 @@ def scan_cmd(
 
 @app.command("check")
 def check_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         help="Raíz del volumen Ventoy.",
         exists=False,
@@ -190,22 +219,22 @@ def check_cmd(
         dir_okay=True,
         readable=True,
     ),
-    catalog: Optional[Path] = typer.Option(None, "--catalog", "-c"),
+    catalog: Path | None = typer.Option(None, "--catalog", "-c"),
     deep: bool = typer.Option(False, "--deep"),
-    only: Optional[str] = typer.Option(
+    only: str | None = typer.Option(
         None,
         "--only",
         help="Filtrar por id/etiqueta/nombre (coma-separado).",
     ),
     offline: bool = typer.Option(False, "--offline", help="No consultar red."),
-    json_out: Optional[Path] = typer.Option(None, "--json"),
+    json_out: Path | None = typer.Option(None, "--json"),
     show_urls: bool = typer.Option(
         False, "--urls", help="Mostrar columna de URL/página."
     ),
     no_dates: bool = typer.Option(
         False, "--no-dates", help="Ocultar columnas de fecha/edad del archivo."
     ),
-    stale_days: Optional[int] = typer.Option(
+    stale_days: int | None = typer.Option(
         180,
         "--stale-days",
         help="Resaltar ISOs con mtime ≥ N días (default 180). 0 = desactivar.",
@@ -233,7 +262,7 @@ def check_cmd(
         "--refresh",
         help="Ignorar cache al leer y volver a consultar la red (sí escribe).",
     ),
-    cache_dir: Optional[Path] = typer.Option(
+    cache_dir: Path | None = typer.Option(
         None,
         "--cache-dir",
         help="Directorio de cache (default: ~/.cache/ventoy-iso-check).",
@@ -327,7 +356,7 @@ def check_cmd(
 
 @app.command("links")
 def links_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         exists=False,
         file_okay=False,
@@ -337,17 +366,17 @@ def links_cmd(
     output: Path = typer.Option(
         Path("links.md"), "--output", "-o", help="Markdown de salida."
     ),
-    catalog: Optional[Path] = typer.Option(None, "--catalog", "-c"),
-    only: Optional[str] = typer.Option(None, "--only"),
+    catalog: Path | None = typer.Option(None, "--catalog", "-c"),
+    only: str | None = typer.Option(None, "--only"),
     deep: bool = typer.Option(False, "--deep"),
     no_dates: bool = typer.Option(False, "--no-dates"),
-    stale_days: Optional[int] = typer.Option(180, "--stale-days"),
+    stale_days: int | None = typer.Option(180, "--stale-days"),
     only_outdated: bool = typer.Option(False, "--only-outdated"),
     only_stale: bool = typer.Option(False, "--only-stale"),
     only_actionable: bool = typer.Option(False, "--only-actionable"),
     no_cache: bool = typer.Option(False, "--no-cache"),
     refresh: bool = typer.Option(False, "--refresh"),
-    cache_dir: Optional[Path] = typer.Option(None, "--cache-dir"),
+    cache_dir: Path | None = typer.Option(None, "--cache-dir"),
     ttl_hours: float = typer.Option(12.0, "--ttl-hours"),
     policy: str = typer.Option(
         "latest-lts",
@@ -412,7 +441,7 @@ def links_cmd(
 
 @app.command("export")
 def export_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
     ),
@@ -422,18 +451,18 @@ def export_cmd(
         "-o",
         help="Archivo de salida (.csv, .html o .json).",
     ),
-    fmt: Optional[str] = typer.Option(
+    fmt: str | None = typer.Option(
         None,
         "--format",
         "-f",
         help="csv | html | json (default: por extensión de -o).",
     ),
     offline: bool = typer.Option(False, "--offline"),
-    only: Optional[str] = typer.Option(None, "--only"),
+    only: str | None = typer.Option(None, "--only"),
     only_outdated: bool = typer.Option(False, "--only-outdated"),
     only_stale: bool = typer.Option(False, "--only-stale"),
     only_actionable: bool = typer.Option(False, "--only-actionable"),
-    stale_days: Optional[int] = typer.Option(180, "--stale-days"),
+    stale_days: int | None = typer.Option(180, "--stale-days"),
     policy: str = typer.Option("latest-lts", "--policy"),
     include_ventoy: bool = typer.Option(
         True,
@@ -511,20 +540,82 @@ def export_cmd(
 
 @app.command("ventoy")
 def ventoy_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
     ),
     offline: bool = typer.Option(False, "--offline"),
-    json_out: Optional[Path] = typer.Option(None, "--json"),
+    json_out: Path | None = typer.Option(None, "--json"),
+    fetch: bool = typer.Option(
+        False,
+        "--fetch",
+        help="Descargar e extraer el release latest a Bootloaders/ (no instala MBR/ESP).",
+    ),
+    platform: str = typer.Option(
+        "both",
+        "--platform",
+        "-p",
+        help="Con --fetch: linux | windows | both",
+    ),
+    dest: Path | None = typer.Option(
+        None,
+        "--dest",
+        "-d",
+        help="Con --fetch: destino (default ROOT/Bootloaders).",
+    ),
+    keep_archive: bool = typer.Option(
+        True,
+        "--keep-archive/--no-keep-archive",
+        help="Con --fetch: conservar .tar.gz / .zip.",
+    ),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
-    """Comprobar versión del bootloader Ventoy (aparte de las ISOs)."""
+    """Bootloader Ventoy: estado local vs GitHub; opcionalmente --fetch del paquete."""
     _setup_log(log_level)
     ventoy = (root or _root_arg()).resolve()
-    if not ventoy.is_dir():
+    if not ventoy.is_dir() and not fetch:
         console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
         raise typer.Exit(2)
+
+    if fetch:
+        out = (dest or (ventoy / "Bootloaders")).resolve()
+        plat = platform.lower().strip()
+        if plat == "both":
+            platforms = ["linux", "windows"]
+        elif plat in ("linux", "windows"):
+            platforms = [plat]
+        else:
+            console.print("[red]--platform debe ser linux, windows o both[/red]")
+            raise typer.Exit(2)
+        console.print(
+            f"[bold]Ventoy fetch[/bold]\n"
+            f"  destino:     {out}\n"
+            f"  plataformas: {', '.join(platforms)}"
+        )
+        try:
+            paths = download_ventoy_release(
+                out,
+                platforms=platforms,
+                keep_archive=keep_archive,
+                console=console,
+            )
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1) from e
+        for p in paths:
+            console.print(f"  → {p}")
+        console.print(
+            "\n[yellow]Siguiente paso:[/yellow] ejecuta Ventoy2Disk "
+            "(Windows .exe o Linux .sh) del directorio extraído para "
+            "[bold]actualizar el bootloader[/bold] del USB. "
+            "Las ISOs no se tocan."
+        )
+        if ventoy.is_dir():
+            st = check_ventoy(ventoy, online=not offline)
+            console.print()
+            console.print(format_ventoy_console(st))
+        return
+
     st = check_ventoy(ventoy, online=not offline)
     console.print(format_ventoy_console(st))
     if json_out:
@@ -535,8 +626,12 @@ def ventoy_cmd(
             encoding="utf-8",
         )
         console.print(f"JSON → {json_out.resolve()}")
-    # exit codes useful for scripts
     if st.status == "OUTDATED":
+        console.print(
+            "\n[dim]Descarga el paquete con:[/dim] "
+            "[bold]ventoy-iso-check ventoy --fetch[/bold] "
+            "[dim](no instala el bootloader; usa Ventoy2Disk después).[/dim]"
+        )
         raise typer.Exit(1)
     if st.status in ("ERROR", "NOT_FOUND"):
         raise typer.Exit(2)
@@ -544,13 +639,13 @@ def ventoy_cmd(
 
 @app.command("suggest")
 def suggest_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
     ),
-    catalog: Optional[Path] = typer.Option(None, "--catalog", "-c"),
+    catalog: Path | None = typer.Option(None, "--catalog", "-c"),
     deep: bool = typer.Option(False, "--deep"),
-    output: Optional[Path] = typer.Option(
+    output: Path | None = typer.Option(
         None,
         "--output",
         "-o",
@@ -584,14 +679,14 @@ def suggest_cmd(
 
 @app.command("download")
 def download_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         help="Raíz Ventoy (reescribe directory en sisou.toml al vuelo).",
         exists=False,
         file_okay=False,
         dir_okay=True,
     ),
-    sisou_config: Optional[Path] = typer.Option(
+    sisou_config: Path | None = typer.Option(
         None,
         "--sisou-config",
         help="Ruta a sisou.toml (default: el del proyecto).",
@@ -675,7 +770,7 @@ app.add_typer(meta_app, name="meta")
 
 @meta_app.command("seal")
 def meta_seal_cmd(
-    root: Optional[Path] = typer.Argument(
+    root: Path | None = typer.Argument(
         None,
         help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
     ),
@@ -689,7 +784,7 @@ def meta_seal_cmd(
         "--hash",
         help="Calcular SHA-256 (lento en USB grande).",
     ),
-    recent_minutes: Optional[float] = typer.Option(
+    recent_minutes: float | None = typer.Option(
         None,
         "--recent-minutes",
         help="Solo ISOs modificadas en los últimos N minutos.",
@@ -721,13 +816,13 @@ def meta_seal_cmd(
 @meta_app.command("write")
 def meta_write_cmd(
     iso: Path = typer.Argument(..., help="Ruta al archivo .iso/.img", exists=True),
-    url: Optional[str] = typer.Option(None, "--url", help="URL de origen"),
-    catalog_id: Optional[str] = typer.Option(None, "--catalog-id"),
+    url: str | None = typer.Option(None, "--url", help="URL de origen"),
+    catalog_id: str | None = typer.Option(None, "--catalog-id"),
     hash_file: bool = typer.Option(False, "--hash", help="Calcular SHA-256"),
     log_level: str = typer.Option("INFO", "--log-level", "-l"),
 ) -> None:
     """Crear/actualizar sidecar para una sola ISO."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from ventoy_iso_check.catalog import load_catalog, match_entry
 
@@ -739,7 +834,7 @@ def meta_write_cmd(
         catalog_id=catalog_id or (entry.id if entry else None),
         local_version=ver,
         source_url=url,
-        downloaded_at=datetime.now(timezone.utc),
+        downloaded_at=datetime.now(UTC),
         compute_hash=hash_file,
     )
     console.print(
@@ -750,8 +845,8 @@ def meta_write_cmd(
 
 @meta_app.command("verify")
 def meta_verify_cmd(
-    root: Optional[Path] = typer.Argument(None),
-    only: Optional[str] = typer.Option(None, "--only"),
+    root: Path | None = typer.Argument(None),
+    only: str | None = typer.Option(None, "--only"),
     log_level: str = typer.Option("INFO", "--log-level", "-l"),
 ) -> None:
     """Verificar SHA-256 de ISOs que tengan hash en el sidecar."""

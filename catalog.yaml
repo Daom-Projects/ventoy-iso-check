@@ -380,3 +380,131 @@ entries:
     page: https://medicatusb.com/
     resolver: none
     note: "Suite grande; no escanear en profundidad salvo --deep. Actualizar desde el proyecto oficial."
+
+  # --- Distros de taller aún no en el USB (soporte de catálogo listo) ---
+
+  - id: kubuntu
+    label: Kubuntu
+    patterns:
+      - '(?i)^kubuntu-(\d+\.\d+(?:\.\d+)?)-desktop-amd64\.iso$'
+      - '(?i)^kubuntu-.*-desktop-amd64\.iso$'
+    managed_by: catalog
+    page: https://kubuntu.org/getkubuntu/
+    resolver: kubuntu
+    arch: amd64
+
+  - id: manjaro-xfce
+    label: Manjaro XFCE
+    patterns:
+      - '(?i)^manjaro-xfce-(\d+(?:\.\d+)*)-.*-x86_64\.iso$'
+      - '(?i)^manjaro[-_]xfce[-_].*\.iso$'
+    managed_by: catalog
+    page: https://manjaro.org/download/
+    resolver: manjaro
+    edition: xfce
+
+  - id: manjaro-kde
+    label: Manjaro KDE
+    patterns:
+      - '(?i)^manjaro-kde-(\d+(?:\.\d+)*)-.*-x86_64\.iso$'
+      - '(?i)^manjaro[-_]kde[-_].*\.iso$'
+    managed_by: catalog
+    page: https://manjaro.org/download/
+    resolver: manjaro
+    edition: kde
+
+  - id: opensuse-leap
+    label: openSUSE Leap
+    patterns:
+      - '(?i)^openSUSE-Leap-(\d+\.\d+)-DVD-x86_64.*\.iso$'
+      - '(?i)^openSUSE-Leap-(\d+\.\d+)-NET-x86_64.*\.iso$'
+      - '(?i)^openSUSE-Leap-.*\.iso$'
+    managed_by: catalog
+    page: https://get.opensuse.org/leap/
+    resolver: opensuse
+    edition: leap
+    arch: x86_64
+
+  - id: opensuse-tumbleweed
+    label: openSUSE Tumbleweed
+    patterns:
+      - '(?i)^openSUSE-Tumbleweed-(?:DVD|NET)-x86_64-Snapshot(\d+)-Media\.iso$'
+      - '(?i)^openSUSE-Tumbleweed-.*\.iso$'
+    managed_by: catalog
+    page: https://get.opensuse.org/tumbleweed/
+    resolver: opensuse
+    edition: tumbleweed
+    arch: x86_64
+
+  - id: rocky-dvd
+    label: Rocky Linux DVD
+    patterns:
+      - '(?i)^Rocky-(\d+(?:\.\d+)*)-x86_64-dvd\.iso$'
+      - '(?i)^Rocky-.*-dvd\.iso$'
+    managed_by: catalog
+    page: https://rockylinux.org/download
+    resolver: rocky
+    edition: dvd
+    arch: x86_64
+
+  - id: rocky-minimal
+    label: Rocky Linux minimal
+    patterns:
+      - '(?i)^Rocky-(\d+(?:\.\d+)*)-x86_64-minimal\.iso$'
+    managed_by: catalog
+    page: https://rockylinux.org/download
+    resolver: rocky
+    edition: minimal
+    arch: x86_64
+
+  - id: almalinux-dvd
+    label: AlmaLinux DVD
+    patterns:
+      - '(?i)^AlmaLinux-(\d+(?:\.\d+)*)-x86_64-dvd\.iso$'
+      - '(?i)^AlmaLinux-.*-dvd\.iso$'
+    managed_by: catalog
+    page: https://almalinux.org/get-almalinux/
+    resolver: almalinux
+    edition: dvd
+    arch: x86_64
+
+  - id: alpine-standard
+    label: Alpine Linux standard
+    patterns:
+      - '(?i)^alpine-standard-(\d+\.\d+(?:\.\d+)*)-x86_64\.iso$'
+      - '(?i)^alpine-extended-(\d+\.\d+(?:\.\d+)*)-x86_64\.iso$'
+      - '(?i)^alpine-.*-x86_64\.iso$'
+    managed_by: catalog
+    page: https://alpinelinux.org/downloads/
+    resolver: alpine
+    arch: x86_64
+
+  - id: mxlinux
+    label: MX Linux
+    patterns:
+      - '(?i)^MX[-_](\d+(?:\.\d+)*)[^/]*_x64\.iso$'
+      - '(?i)^MX[-_].*_x64\.iso$'
+    managed_by: catalog
+    page: https://mxlinux.org/download-links/
+    resolver: mxlinux
+
+  - id: supergrub2
+    label: Super Grub2 Disk
+    patterns:
+      - '(?i)^super_?grub2?_?disk.*\.iso$'
+      - '(?i)^supergrub2.*\.iso$'
+      - '(?i)^sgd.*\.iso$'
+    managed_by: catalog
+    page: https://www.supergrubdisk.org/
+    resolver: supergrub2
+
+  - id: garuda
+    label: Garuda Linux
+    patterns:
+      - '(?i)^garuda-.*-(\d{8}).*\.iso$'
+      - '(?i)^garuda-.*\.iso$'
+    managed_by: catalog
+    page: https://garudalinux.org/downloads
+    resolver: garuda
+    edition: dr460nized
+    note: "Rolling; ediciones múltiples (dr460nized, gnome, …)."

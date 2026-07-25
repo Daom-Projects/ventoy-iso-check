@@ -20,9 +20,12 @@ CLI Python (`uv`) + opcional Docker que **inventaría y comprueba ISOs** en un d
 cd ~/projects/ventoy-iso-check   # o el clone del agente
 uv sync
 uv run pytest -q
+uv run ruff check src tests
 uv run ventoy-iso-check -V
+uv run ventoy-iso-check --help                          # flags; en TTY sin args → menú
 uv run ventoy-iso-check scan /mnt/e --sort age          # si el volumen está montado
 uv run ventoy-iso-check check /mnt/e --only fedora,ubuntu --workers 8
+uv run ventoy-iso-check ventoy /mnt/e --fetch --platform linux
 uv run ventoy-iso-check download /mnt/e --dry-run
 docker build -t ventoy-iso-check:local .                # si tocas Docker
 ```
@@ -33,20 +36,24 @@ docker build -t ventoy-iso-check:local .                # si tocas Docker
 catalog.yaml                 # patrones ISO + managed_by + resolver
 sisou.toml                   # plantilla SuperISOUpdater (directory se reescribe)
 src/ventoy_iso_check/
-  cli.py                     # Typer: scan | check | links | download
+  cli.py                     # Typer/Click: scan | check | menu | ventoy | …
+  menu.py                    # menú interactivo Rich (prompts)
   inventory.py               # walk *.iso/*.img, mtime/age
   catalog.py                 # carga YAML + match regex
   resolvers.py               # latest remoto por distro
   version_cmp.py             # comparación de versiones
   checker.py                 # orquesta scan + resolve + status
   reporters.py               # Rich table, JSON, links.md
+  ventoy_info.py             # bootloader check + fetch release
+  export.py                  # CSV/HTML
   sisou_bridge.py            # uv/sisou + TOML temporal
   paths.py                   # VENTOY_ROOT | /ventoy | /mnt/e
   models.py                  # IsoItem, Status, CatalogEntry
 docs/
   CONTEXT.md                 # contexto profundo para agentes
-  PHASED_PLAN.md             # plan por fases (fuente de verdad del roadmap)
+  PHASED_PLAN.md             # plan por fases (0–9 done)
   ARCHITECTURE.md            # diagrama de flujo y módulos
+  WINDOWS.md                 # PowerShell + update Ventoy2Disk
 ```
 
 ## Reglas de diseño (no negociables sin acuerdo)
@@ -107,6 +114,7 @@ docs/
 
 ## Versión actual
 
-- Paquete: **0.12.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
-- Plan de fases: **0–9 completado** (última: CI GitHub Actions)
-- CI: `.github/workflows/ci.yml` (pytest + docker build, sin discos reales)
+- Paquete: **1.0.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Plan de fases: **0–9 completado**; hito 1.0.0 (menú Rich, ruff, más distros, ventoy --fetch)
+- CI: `.github/workflows/ci.yml` (ruff + pytest + docker build, sin discos reales)
+- Stack UX: **Typer (Click) + Rich** — flags y menú interactivo

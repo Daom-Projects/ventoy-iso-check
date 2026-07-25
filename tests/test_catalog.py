@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ventoy_iso_check.catalog import load_catalog, match_entry
+from ventoy_iso_check.catalog import match_entry
 
 
 def test_load_catalog_has_core_entries(catalog_entries):

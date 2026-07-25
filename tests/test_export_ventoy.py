@@ -6,7 +6,6 @@ from unittest.mock import patch
 from ventoy_iso_check.export import write_csv, write_html
 from ventoy_iso_check.models import IsoItem, Status
 from ventoy_iso_check.ventoy_info import (
-    VentoyStatus,
     _find_local_version,
     check_ventoy,
 )

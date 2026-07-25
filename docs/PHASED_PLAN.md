@@ -4,7 +4,7 @@ project: ventoy-iso-check
 status: complete
 last_updated: 2026-07-25
 current_phase: done
-version_baseline: "0.12.0"
+version_baseline: "1.0.0"
 ---
 
 
@@ -334,5 +334,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 7 | 2026-07-25 | (v0.10.0) | pytest suite + parallel resolvers --workers |
 | 8 | 2026-07-25 | (v0.11.0) | export csv/html/json + ventoy bootloader check |
 | 9 | 2026-07-25 | (v0.12.0) | GitHub Actions: uv/pytest + docker build (sin discos) |
+| — | 2026-07-25 | **v1.0.0** | Menú Rich, ruff en CI, catálogo ampliado, `ventoy --fetch` |
 
-**Roadmap de fases 0–9 completado.** Mejoras posteriores: issues sueltas o un nuevo plan.
+**Roadmap de fases 0–9 completado** + hito **1.0.0** (app de consola completa).

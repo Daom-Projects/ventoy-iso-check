@@ -4,17 +4,17 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
 [![CI](https://github.com/Daom-Projects/ventoy-iso-check/actions/workflows/ci.yml/badge.svg)](https://github.com/Daom-Projects/ventoy-iso-check/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.12.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](./CHANGELOG.md)
 
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
 **Enfoque híbrido:**
 
-1. **`ventoy-iso-check`** — escanea el árbol, parsea versiones, consulta fuentes oficiales, muestra **fecha/edad del archivo en disco** y genera informe + enlaces.
+1. **`ventoy-iso-check`** — CLI **Typer/Click + Rich**: flags/subcomandos **o menú interactivo**.
 2. **[SuperISOUpdater (sisou)](https://github.com/JoshuaVandaele/SuperISOUpdater)** — descarga y verifica checksums de distros soportadas (`sisou.toml`).
 
-> Por defecto **no descarga nada**.
+> Por defecto **no descarga nada** (salvo que elijas `download` o `ventoy --fetch`).
 
 | | |
 |--|--|
@@ -36,8 +36,9 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.12.0)
+## Características (v1.0.0)
 
+- **Menú interactivo** (Rich): `ventoy-iso-check` / `menu` / `-m` — y **toda la CLI por flags**.
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
 - **File date** + **Age** (mtime o **sidecar** `downloaded_at`).
@@ -45,15 +46,15 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 - **Política multi-LTS**: `--policy latest|latest-lts|same-series`.
 - **`suggest`**: genera YAML para ISOs aún no catalogadas.
 - Resolvers HTTP en **paralelo** (`--workers`, default 8).
-- Suite **pytest** (`make test`).
+- Suite **pytest** + **ruff** en CI (`make test` / `make lint`).
 - **Export** CSV / HTML / JSON y check del **bootloader Ventoy**.
+- **`ventoy --fetch`**: descarga el paquete oficial a `Bootloaders/`.
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
 - **Cache de latest** (TTL 12 h, `~/.cache/ventoy-iso-check/`).
-- Generación de **enlaces** (Markdown) y export **JSON**.
 - Descarga opcional vía **sisou** (Python 3.12 / Docker).
 - Portable: **Docker**, **uv**, variables `$VENTOY_ROOT` / `$VENTOY_HOST`.
-- Catálogo editable (`catalog.yaml`) + plantilla `sisou.toml`.
+- Catálogo amplio (Ubuntu/Mint/Fedora/Kali/… + Debian, Arch, Manjaro, openSUSE, Rocky, Alma, Alpine, MX, Garuda, GParted, Memtest, Super Grub2, …).
 - Guía Windows: [docs/WINDOWS.md](./docs/WINDOWS.md).
 
 ### Estados
@@ -149,6 +150,13 @@ cd ventoy-iso-check
 uv sync
 
 export VENTOY_ROOT=/mnt/e
+
+# Menú interactivo (Rich) — recomendado para uso diario
+uv run ventoy-iso-check
+# o: uv run ventoy-iso-check menu
+# o: uv run ventoy-iso-check -m
+
+# Misma funcionalidad por flags (scripts / CI)
 uv run ventoy-iso-check scan
 uv run ventoy-iso-check check --urls --sort age
 uv run ventoy-iso-check links -o links.md
@@ -202,8 +210,11 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 
 ## Comandos CLI
 
+Stack: **Typer** (sobre **Click**) + **Rich** (tablas, paneles, menú, prompts).
+
 | Comando | Red | Efecto |
 |---------|-----|--------|
+| *(sin args / `menu` / `-m`)* | — | **Menú interactivo** (TTY) |
 | `scan [ROOT]` | No | Inventario local + fechas |
 | `check [ROOT]` | Sí | Compara con latest (sin descargar) |
 | `links [ROOT] -o FILE` | Sí | Markdown con URLs |
@@ -214,6 +225,7 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `suggest [ROOT]` | No | YAML sugerido para ISOs UNSUPPORTED |
 | `export [ROOT] -o FILE` | opcional | CSV / HTML / JSON del inventario |
 | `ventoy [ROOT]` | Sí* | Versión bootloader local vs GitHub (*offline OK) |
+| `ventoy [ROOT] --fetch` | Sí | Descarga paquete official → `Bootloaders/` |
 
 | Flag | Efecto |
 |------|--------|
@@ -272,9 +284,11 @@ uv run ventoy-iso-check export /mnt/e -o ~/ventoy-report.csv
 uv run ventoy-iso-check export /mnt/e -o ~/ventoy-report.html
 uv run ventoy-iso-check export /mnt/e -o ~/ventoy-report.json --only-outdated
 
-# Bootloader (tu USB: Bootloaders/ventoy-1.1.10 → version 1.1.10)
+# Bootloader: estado vs GitHub + descarga de paquetes a Bootloaders/
 uv run ventoy-iso-check ventoy /mnt/e
+uv run ventoy-iso-check ventoy /mnt/e --fetch --platform both
 # exit 1 si OUTDATED, 2 si no se encuentra / error
+# Tras --fetch: en Windows ejecuta Ventoy2Disk.exe → Update (no formatea ISOs)
 ```
 
 ```bash
@@ -419,8 +433,9 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 7 | tests + HTTP paralelo | **done** (v0.10.0) |
 | 8 | export + Ventoy bootloader | **done** (v0.11.0) |
 | 9 | CI GitHub Actions | **done** (v0.12.0) |
+| — | **v1.0.0** menú Rich + ruff + más distros + `ventoy --fetch` | **done** |
 
-Roadmap de fases **0–9 completado**. Mejoras posteriores: issues o un nuevo plan.
+Roadmap de fases **0–9 completado**. Hito **1.0.0**: app de consola completa (menú + flags).
 
 ---
 
@@ -429,6 +444,7 @@ Roadmap de fases **0–9 completado**. Mejoras posteriores: issues o un nuevo pl
 ```bash
 uv sync
 uv run pytest -q          # o: make test
+uv run ruff check src tests   # o: make lint
 uv run ventoy-iso-check --help
 uv run ventoy-iso-check -V
 docker build -t ventoy-iso-check:local .

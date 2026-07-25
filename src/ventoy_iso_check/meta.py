@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ventoy_iso_check import __version__
@@ -37,7 +37,7 @@ class IsoMeta:
         try:
             dt = datetime.fromisoformat(self.downloaded_at)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             return None
@@ -121,7 +121,7 @@ def write_meta_for_iso(
     """Create or update sidecar for an ISO."""
     iso_path = iso_path.resolve()
     existing = load_meta(iso_path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if size is None:
         try:
             size = iso_path.stat().st_size
@@ -145,11 +145,11 @@ def write_meta_for_iso(
     if sha256:
         meta.sha256 = sha256
     if downloaded_at is not None:
-        meta.downloaded_at = downloaded_at.astimezone(timezone.utc).isoformat()
+        meta.downloaded_at = downloaded_at.astimezone(UTC).isoformat()
     elif not meta.downloaded_at:
         # Prefer file mtime as best guess when sealing existing files
         try:
-            mtime = datetime.fromtimestamp(iso_path.stat().st_mtime, tz=timezone.utc)
+            mtime = datetime.fromtimestamp(iso_path.stat().st_mtime, tz=UTC)
             meta.downloaded_at = mtime.isoformat()
         except OSError:
             meta.downloaded_at = now.isoformat()
@@ -174,7 +174,7 @@ def seal_tree(
     entries, defaults = load_catalog()
     skip = set(defaults.get("skip_dir_names") or [])
     written: list[Path] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     count = 0
 
     for dirpath, dirnames, filenames in root.resolve().walk(on_error=lambda _e: None):
@@ -187,7 +187,7 @@ def seal_tree(
                 continue
             if recently_modified_minutes is not None:
                 try:
-                    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+                    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
                     age_min = (now - mtime).total_seconds() / 60.0
                     if age_min > recently_modified_minutes:
                         continue

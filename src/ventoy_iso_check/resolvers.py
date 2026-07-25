@@ -733,7 +733,6 @@ def resolve_proxmox(entry: CatalogEntry, local_version: str | None) -> ResolveRe
     try:
         with _client() as client:
             matches: list[tuple[str, str]] = []
-            base_url = urls_to_try[0]
             for u in urls_to_try:
                 r = client.get(u)
                 if r.status_code >= 400:
@@ -743,10 +742,6 @@ def resolve_proxmox(entry: CatalogEntry, local_version: str | None) -> ResolveRe
                 )
                 if found:
                     matches = found
-                    base_url = u if u.endswith("/") else u.rsplit("/", 1)[0] + "/"
-                    # normalize base for enterprise/download hosts
-                    if "download.proxmox.com" in u or "enterprise.proxmox.com" in u:
-                        base_url = u if u.endswith("/") else u + "/"
                     break
             if not matches:
                 return ResolveResult(
@@ -1113,6 +1108,368 @@ def resolve_pearos(entry: CatalogEntry, local_version: str | None) -> ResolveRes
         return ResolveResult(error=str(e), page=entry.page)
 
 
+def resolve_manjaro(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Manjaro official download page (xfce/kde/gnome)."""
+    edition = (entry.edition or "xfce").lower()
+    try:
+        with _client() as client:
+            r = client.get("https://manjaro.org/products/download/x86")
+            text = r.text
+            # full ISO links often on mirror: manjaro-...-x86_64.iso
+            pat = rf'(https?://[^"\']*manjaro[-_]{re.escape(edition)}[^"\']*-(\d{{2}}(?:\.\d+)*)[^"\']*x86_64\.iso)'
+            matches = re.findall(pat, text, flags=re.I)
+            if not matches:
+                pat2 = r'(https?://[^"\']+(manjaro[^"\']*-(\d{2}(?:\.\d+)*)[^"\']*x86_64\.iso))'
+                matches = [(m[0], m[2]) for m in re.findall(pat2, text, flags=re.I) if edition in m[1].lower()]
+            if not matches:
+                return ResolveResult(
+                    page=entry.page or "https://manjaro.org/download/",
+                    note="No se listó ISO en la página; descarga manual en manjaro.org",
+                )
+            best = max(matches, key=lambda x: x[1])
+            return ResolveResult(
+                latest_version=best[1],
+                download_url=best[0],
+                page=entry.page or "https://manjaro.org/download/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_opensuse(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """openSUSE Leap (default) or Tumbleweed."""
+    edition = (entry.edition or "leap").lower()
+    try:
+        with _client() as client:
+            if edition == "tumbleweed":
+                base = (
+                    "https://download.opensuse.org/tumbleweed/iso/"
+                )
+                r = client.get(base)
+                r.raise_for_status()
+                # openSUSE-Tumbleweed-DVD-x86_64-SnapshotYYYYMMDD-Media.iso
+                m = re.findall(
+                    r'href="(openSUSE-Tumbleweed-DVD-x86_64-Snapshot(\d+)-Media\.iso)"',
+                    r.text,
+                    flags=re.I,
+                )
+                if not m:
+                    m = re.findall(
+                        r'href="(openSUSE-Tumbleweed-NET-x86_64-Snapshot(\d+)-Media\.iso)"',
+                        r.text,
+                        flags=re.I,
+                    )
+                if not m:
+                    return ResolveResult(error="No Tumbleweed ISO", page=entry.page)
+                best = max(m, key=lambda x: x[1])
+                return ResolveResult(
+                    latest_version=best[1],
+                    download_url=base + best[0],
+                    page=entry.page or "https://get.opensuse.org/tumbleweed/",
+                )
+            # Leap: discover current minor from distribution/leap/
+            r = client.get("https://download.opensuse.org/distribution/leap/")
+            r.raise_for_status()
+            leaps = re.findall(r'href="(\d+\.\d+)/"', r.text)
+            leaps = sorted({x for x in leaps if not x.startswith("0")}, key=lambda v: [int(p) for p in v.split(".")])
+            if not leaps:
+                return ResolveResult(error="No Leap versions listed", page=entry.page)
+            ver = leaps[-1]
+            base = f"https://download.opensuse.org/distribution/leap/{ver}/iso/"
+            r2 = client.get(base)
+            r2.raise_for_status()
+            # openSUSE-Leap-15.6-DVD-x86_64-Media.iso or Build…
+            m = re.findall(
+                rf'href="(openSUSE-Leap-{re.escape(ver)}-DVD-x86_64[^"]*\.iso)"',
+                r2.text,
+                flags=re.I,
+            )
+            if not m:
+                m = re.findall(
+                    rf'href="(openSUSE-Leap-{re.escape(ver)}-NET-x86_64[^"]*\.iso)"',
+                    r2.text,
+                    flags=re.I,
+                )
+            if not m:
+                return ResolveResult(
+                    latest_version=ver,
+                    page=entry.page or base,
+                    note="Versión Leap detectada; ISO no listada en iso/",
+                )
+            fname = sorted(m)[-1]
+            return ResolveResult(
+                latest_version=ver,
+                download_url=base + fname,
+                page=entry.page or "https://get.opensuse.org/leap/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_rocky(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Rocky Linux DVD/minimal from download.rockylinux.org."""
+    arch = entry.arch or "x86_64"
+    try:
+        with _client() as client:
+            r = client.get("https://download.rockylinux.org/pub/rocky/")
+            r.raise_for_status()
+            majors = re.findall(r'href="(\d+)/"', r.text)
+            majors = sorted({int(m) for m in majors if m.isdigit()})
+            if not majors:
+                return ResolveResult(error="No Rocky major versions", page=entry.page)
+            major = majors[-1]
+            base = f"https://download.rockylinux.org/pub/rocky/{major}/isos/{arch}/"
+            r2 = client.get(base)
+            r2.raise_for_status()
+            # Rocky-9.5-x86_64-dvd.iso or minimal
+            kind = "minimal" if (entry.edition or "").lower() == "minimal" else "dvd"
+            matches = re.findall(
+                rf'href="(Rocky-(\d+(?:\.\d+)*)-{re.escape(arch)}-{kind}\.iso)"',
+                r2.text,
+                flags=re.I,
+            )
+            if not matches:
+                matches = re.findall(
+                    rf'href="(Rocky-(\d+(?:\.\d+)*)-{re.escape(arch)}-dvd\.iso)"',
+                    r2.text,
+                    flags=re.I,
+                )
+            if not matches:
+                return ResolveResult(
+                    latest_version=str(major),
+                    page=entry.page or base,
+                    note="Directorio de ISOs sin coincidencia dvd/minimal",
+                )
+            best = max(matches, key=lambda x: x[1])
+            return ResolveResult(
+                latest_version=best[1],
+                download_url=base + best[0],
+                page=entry.page or "https://rockylinux.org/download",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_almalinux(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """AlmaLinux ISO listing."""
+    arch = entry.arch or "x86_64"
+    try:
+        with _client() as client:
+            r = client.get("https://repo.almalinux.org/almalinux/")
+            r.raise_for_status()
+            majors = re.findall(r'href="(\d+)/"', r.text)
+            majors = sorted({int(m) for m in majors if m.isdigit()})
+            if not majors:
+                return ResolveResult(error="No Alma major", page=entry.page)
+            major = majors[-1]
+            base = f"https://repo.almalinux.org/almalinux/{major}/isos/{arch}/"
+            r2 = client.get(base)
+            r2.raise_for_status()
+            kind = "minimal" if (entry.edition or "").lower() == "minimal" else "dvd"
+            matches = re.findall(
+                rf'href="(AlmaLinux-(\d+(?:\.\d+)*)-{re.escape(arch)}-{kind}\.iso)"',
+                r2.text,
+                flags=re.I,
+            )
+            if not matches:
+                matches = re.findall(
+                    rf'href="(AlmaLinux-(\d+(?:\.\d+)*)-{re.escape(arch)}-dvd\.iso)"',
+                    r2.text,
+                    flags=re.I,
+                )
+            if not matches:
+                return ResolveResult(
+                    latest_version=str(major),
+                    page=entry.page or base,
+                    note="Sin ISO dvd/minimal listada",
+                )
+            best = max(matches, key=lambda x: x[1])
+            return ResolveResult(
+                latest_version=best[1],
+                download_url=base + best[0],
+                page=entry.page or "https://almalinux.org/get-almalinux/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_alpine(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Alpine standard ISO (latest-stable)."""
+    arch = entry.arch or "x86_64"
+    try:
+        with _client() as client:
+            base = f"https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/{arch}/"
+            r = client.get(base)
+            r.raise_for_status()
+            matches = re.findall(
+                rf'href="(alpine-standard-(\d+\.\d+(?:\.\d+)*)-{re.escape(arch)}\.iso)"',
+                r.text,
+                flags=re.I,
+            )
+            if not matches:
+                matches = re.findall(
+                    rf'href="(alpine-extended-(\d+\.\d+(?:\.\d+)*)-{re.escape(arch)}\.iso)"',
+                    r.text,
+                    flags=re.I,
+                )
+            if not matches:
+                return ResolveResult(error="No Alpine ISO", page=entry.page or base)
+            best = max(matches, key=lambda x: x[1])
+            return ResolveResult(
+                latest_version=best[1],
+                download_url=base + best[0],
+                page=entry.page or "https://alpinelinux.org/downloads/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_mxlinux(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """MX Linux from SourceForge."""
+    try:
+        with _client() as client:
+            r = client.get("https://sourceforge.net/projects/mx-linux/files/Final/")
+            r.raise_for_status()
+            # MX-23.x_x64.iso style under Final/MX-XX/
+            vers = re.findall(r'href="[^"]*?MX[-_]?(\d+(?:\.\d+)*)', r.text, flags=re.I)
+            latest = _best_version(vers) if vers else None
+            # Also try direct listing of iso names
+            isos = re.findall(
+                r"(MX[-_](\d+(?:\.\d+)*)[^\"']*_x64\.iso)",
+                r.text,
+                flags=re.I,
+            )
+            if isos:
+                best = max(isos, key=lambda x: x[1])
+                fname, ver = best
+                url = (
+                    "https://sourceforge.net/projects/mx-linux/files/Final/"
+                    f"{fname}/download"
+                )
+                return ResolveResult(
+                    latest_version=ver,
+                    download_url=url,
+                    page=entry.page or "https://mxlinux.org/download-links/",
+                )
+            return ResolveResult(
+                latest_version=latest,
+                page=entry.page or "https://mxlinux.org/download-links/",
+                note="Consulta la web de MX para el mirror más cercano",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_supergrub2(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Super Grub2 Disk from GitHub releases."""
+    try:
+        with _client() as client:
+            r = client.get(
+                "https://api.github.com/repos/supergrub/supergrub/releases/latest"
+            )
+            r.raise_for_status()
+            data = r.json()
+            tag = (data.get("tag_name") or "").lstrip("v")
+            url = None
+            for a in data.get("assets") or []:
+                name = (a.get("name") or "").lower()
+                if name.endswith(".iso") and ("x86_64" in name or "hybrid" in name or "multiarch" in name):
+                    url = a.get("browser_download_url")
+                    break
+            if not url:
+                for a in data.get("assets") or []:
+                    if (a.get("name") or "").lower().endswith(".iso"):
+                        url = a.get("browser_download_url")
+                        break
+            return ResolveResult(
+                latest_version=tag or None,
+                download_url=url,
+                page=entry.page or "https://www.supergrubdisk.org/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_kubuntu(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Kubuntu desktop from cdimage.ubuntu.com (LTS-aware via ubuntu-like scrape)."""
+    arch = entry.arch or "amd64"
+    try:
+        with _client() as client:
+            base = "https://cdimage.ubuntu.com/kubuntu/releases/"
+            r = client.get(base)
+            r.raise_for_status()
+            vers = re.findall(r'href="(\d+\.\d+(?:\.\d+)?)/"', r.text)
+            # Prefer even.04 LTS-style
+            lts = [v for v in vers if re.match(r"^\d+\.04", v)]
+            pool = lts or vers
+            if not pool:
+                return ResolveResult(error="No Kubuntu releases", page=entry.page)
+            best_series = _best_version(pool)
+            if not best_series:
+                return ResolveResult(error="No Kubuntu version", page=entry.page)
+            page = f"{base}{best_series}/release/"
+            r2 = client.get(page)
+            r2.raise_for_status()
+            m = re.findall(
+                rf'href="(kubuntu-({re.escape(best_series)}(?:\.\d+)?)-desktop-{re.escape(arch)}\.iso)"',
+                r2.text,
+                flags=re.I,
+            )
+            if not m:
+                # try without nested version group
+                m2 = re.findall(
+                    rf'href="(kubuntu-(\d+\.\d+(?:\.\d+)?)-desktop-{re.escape(arch)}\.iso)"',
+                    r2.text,
+                    flags=re.I,
+                )
+                m = m2
+            if not m:
+                return ResolveResult(
+                    latest_version=best_series,
+                    page=entry.page or page,
+                    note="Serie detectada; ISO no listada en release/",
+                )
+            fname, ver = max(m, key=lambda x: x[1])
+            return ResolveResult(
+                latest_version=ver,
+                download_url=page + fname,
+                page=entry.page or "https://kubuntu.org/getkubuntu/",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
+def resolve_garuda(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+    """Garuda Linux ISO list (best-effort from downloads page)."""
+    edition = (entry.edition or "dr460nized").lower()
+    try:
+        with _client() as client:
+            r = client.get("https://garudalinux.org/downloads")
+            text = r.text
+            # full URLs with date stamp
+            all_isos = re.findall(
+                r'(https?://[^\s"\']+garuda[^\s"\']*-(\d{8})[^\s"\']*\.iso)',
+                text,
+                flags=re.I,
+            )
+            matches = [m for m in all_isos if edition in m[0].lower()]
+            if not matches:
+                matches = all_isos
+            if not matches:
+                return ResolveResult(
+                    page=entry.page or "https://garudalinux.org/downloads",
+                    note="Descarga manual en garudalinux.org (ediciones múltiples)",
+                )
+            best = max(matches, key=lambda x: x[1])
+            return ResolveResult(
+                latest_version=best[1],
+                download_url=best[0],
+                page=entry.page or "https://garudalinux.org/downloads",
+            )
+    except Exception as e:
+        return ResolveResult(error=str(e), page=entry.page)
+
+
 RESOLVERS = {
     "ubuntu": resolve_ubuntu,
     "ubuntu_budgie": resolve_ubuntu_budgie,
@@ -1135,6 +1492,15 @@ RESOLVERS = {
     "gparted": resolve_gparted,
     "memtest86plus": resolve_memtest86plus,
     "pearos": resolve_pearos,
+    "manjaro": resolve_manjaro,
+    "opensuse": resolve_opensuse,
+    "rocky": resolve_rocky,
+    "almalinux": resolve_almalinux,
+    "alpine": resolve_alpine,
+    "mxlinux": resolve_mxlinux,
+    "supergrub2": resolve_supergrub2,
+    "kubuntu": resolve_kubuntu,
+    "garuda": resolve_garuda,
     "none": lambda e, v: ResolveResult(page=e.page, note=e.note),
 }
 

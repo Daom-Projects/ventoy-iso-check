@@ -3,34 +3,35 @@
 ## Flujo principal
 
 ```text
-                    ┌─────────────────┐
-                    │  CLI (Typer)    │
-                    │ scan/check/     │
-                    │ links/download  │
-                    │ meta/suggest    │
-                    └────────┬────────┘
-                             │
-     ┌───────────┬───────────┼───────────┬────────────┐
-     ▼           ▼           ▼           ▼            ▼
- inventory   catalog     cache      filters      sisou_bridge
- walk disk   YAML match  latest     UX filter    download
- mtime/meta              TTL
+                    ┌──────────────────────┐
+                    │  CLI Typer (Click)   │
+                    │  + menú Rich         │
+                    │ scan/check/export/   │
+                    │ ventoy/meta/…        │
+                    └──────────┬───────────┘
+                               │
+     ┌───────────┬─────────────┼───────────┬────────────┐
+     ▼           ▼             ▼           ▼            ▼
+ inventory   catalog       cache      filters      sisou_bridge
+ walk disk   YAML match    latest     UX filter    download
+ mtime/meta                TTL
      │           │
      └─────┬─────┘
            ▼
         checker (+ policy + resolve + checksum)
            │
-     ┌─────┴─────┬──────────┐
-     ▼           ▼          ▼
- resolvers   version_cmp  reporters
- HTTP        outdated?    Rich/JSON/MD
+     ┌─────┴─────┬──────────┬──────────┐
+     ▼           ▼          ▼          ▼
+ resolvers   version_cmp  reporters  ventoy_info
+ HTTP        outdated?    Rich/JSON  bootloader+fetch
 ```
 
 ## Módulos
 
 | Módulo | Responsabilidad |
 |--------|-----------------|
-| `cli.py` | Typer: scan, check, links, download, meta, suggest |
+| `cli.py` | Typer/Click: todos los subcomandos y flags |
+| `menu.py` | Menú interactivo Rich (prompts) |
 | `paths.py` | Raíz Ventoy y project root |
 | `inventory.py` | `*.iso`/`*.img`, mtime, sidecars |
 | `catalog.py` | `catalog.yaml` + regex → entry/version |
@@ -38,12 +39,14 @@
 | `resolvers.py` | Latest remoto por distro |
 | `policy.py` | `latest` / `latest-lts` / `same-series` |
 | `version_cmp.py` | Comparación de versiones |
-| `checker.py` | Orquesta status |
+| `checker.py` | Orquesta status (+ workers) |
 | `filters.py` | only-outdated / stale / actionable |
 | `cache.py` | Cache JSON de latest |
 | `meta.py` | Sidecars `.meta.json` + SHA-256 |
 | `disk.py` | Espacio libre pre-download |
+| `export.py` | CSV / HTML |
 | `reporters.py` | Tabla / JSON / links.md |
+| `ventoy_info.py` | Versión bootloader + download release |
 | `sisou_bridge.py` | sisou + seal post-download |
 | `models.py` | Dataclasses y enums |
 
