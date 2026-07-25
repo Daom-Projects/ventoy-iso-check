@@ -8,6 +8,7 @@ from ventoy_iso_check.catalog import load_catalog, match_entry
 from ventoy_iso_check.inventory import scan_isos
 from ventoy_iso_check.meta import verify_sha256
 from ventoy_iso_check.models import CatalogEntry, IsoItem, Status
+from ventoy_iso_check.policy import UpgradePolicy
 from ventoy_iso_check.resolvers import resolve
 from ventoy_iso_check.version_cmp import is_outdated
 
@@ -23,7 +24,11 @@ def run_check(
     only: set[str] | None = None,
     cache: ResolveCache | None = None,
     verify_checksum: bool = False,
+    policy: UpgradePolicy | str = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
 ) -> list[IsoItem]:
+    if isinstance(policy, str):
+        policy = UpgradePolicy.parse(policy)
     entries, defaults = load_catalog(catalog_path)
     skip = set(defaults.get("skip_dir_names") or [])
     exts = set(defaults.get("extensions") or [".iso", ".img"])
@@ -72,10 +77,15 @@ def run_check(
             item.note = item.note or "Usar sisou para comprobar/actualizar esta ISO"
             continue
 
-        key = cache_key(entry, item.local_version)
+        key = cache_key(entry, item.local_version, policy=policy.value)
         result = cache.get(key) if cache else None
         if result is None:
-            result = resolve(entry, item.local_version)
+            result = resolve(
+                entry,
+                item.local_version,
+                policy=policy,
+                hint_newer=hint_newer,
+            )
             if cache is not None:
                 cache.set(key, result)
                 dirty = True

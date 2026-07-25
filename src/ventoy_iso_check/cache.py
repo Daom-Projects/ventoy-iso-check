@@ -28,14 +28,19 @@ def default_cache_file(cache_dir: Path | None = None) -> Path:
     return (cache_dir or default_cache_dir()) / "latest.json"
 
 
-def cache_key(entry: CatalogEntry, local_version: str | None) -> str:
-    """Key for a resolve lookup (includes local version: Ubuntu LTS policy depends on it)."""
+def cache_key(
+    entry: CatalogEntry,
+    local_version: str | None,
+    policy: str | None = None,
+) -> str:
+    """Key for a resolve lookup (local version + upgrade policy affect target)."""
     parts = [
         entry.id,
         entry.resolver or "none",
         entry.edition or "",
         entry.arch or "",
         local_version or "",
+        policy or "latest-lts",
     ]
     return "|".join(parts)
 

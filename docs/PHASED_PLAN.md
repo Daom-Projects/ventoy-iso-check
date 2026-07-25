@@ -3,8 +3,8 @@ title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
 last_updated: 2026-07-25
-current_phase: 5
-version_baseline: "0.7.0"
+current_phase: 6
+version_baseline: "0.8.0"
 ---
 
 
@@ -28,7 +28,7 @@ Al completar una fase:
 | 2 | Pre-check de espacio libre en `download` | **done** | Alta |
 | 3 | Cache de latest (TTL) | **done** | Alta |
 | 4 | Sidecar metadata + checksum opcional | **done** | Alta |
-| 5 | Política multi-LTS / pin de serie | pending | Media |
+| 5 | Política multi-LTS / pin de serie | **done** | Media |
 | 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | pending | Media |
 | 7 | Calidad: tests de resolvers + async HTTP | pending | Media |
 | 8 | Export CSV/HTML + check Ventoy bootloader | pending | Baja |
@@ -195,7 +195,7 @@ Junto a `foo.iso` → `foo.iso.meta.json`:
 
 ## Fase 5 — Política multi-LTS / pin de serie
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.8.0)  
 **Estimación:** M  
 **Depende de:** 0
 
@@ -206,9 +206,10 @@ No todo el mundo quiere que 24.04.4 se marque OUTDATED solo por existir 26.04.
 
 ### Trabajo
 
-- [ ] En catalog o CLI: `upgrade_policy: latest | same-series | latest-lts` (default `latest-lts` para Ubuntu server).
-- [ ] Flag global `--policy same-series` para un check.
-- [ ] Nota en tabla cuando hay LTS más nueva pero policy = same-series: no OUTDATED, status OK + note informativa opcional (`--hint-newer-lts`).
+- [x] CLI `--policy latest | same-series | latest-lts` (default `latest-lts`).
+- [x] `--hint-newer-lts` con same-series.
+- [x] Ubuntu, Budgie, Mint, Fedora, Pop!_OS; cache incluye policy.
+- [x] Módulo `policy.py`.
 
 ### Criterios de aceptación
 
@@ -321,5 +322,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 2 | 2026-07-25 | (v0.5.0) | Espacio libre pre-download; docs/WINDOWS.md |
 | 3 | 2026-07-25 | (v0.6.0) | Cache latest TTL 12h; validación fases 1–2 en /mnt/e |
 | 4 | 2026-07-25 | (v0.7.0) | Sidecar .meta.json + meta seal/write/verify + checksum |
+| 5 | 2026-07-25 | (v0.8.0) | --policy latest|latest-lts|same-series + --hint-newer-lts |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

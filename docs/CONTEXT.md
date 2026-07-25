@@ -66,13 +66,17 @@ Añadir una distro nueva:
 Historial de bugs: resolvers **anclados a la serie local** daban falsos `OK`  
 (Ubuntu 24.04.4 vs LTS 26.04; Fedora 43 vs 44).
 
-**Política actual:**
+**Política actual (CLI `--policy`):**
 
-- Reportar la **última release publicada con ISO usable**.
-- Si la serie local sigue al día en point-release pero hay major/LTS nueva → `OUTDATED` + `note` explicativa.
-- Ubuntu server / LTS: objetivo = **última LTS soportada**.
-- Fedora: caminar releases nuevas hasta encontrar ISO real (dirs vacíos tempranos).
-- Kali/CachyOS/Tails/Proxmox/Clonezilla/SystemRescue/Rescuezilla: ya eran “latest absoluto”.
+| Policy | Comportamiento |
+|--------|----------------|
+| `latest-lts` (default) | Ubuntu server/LTS → última LTS; interim → latest; Fedora/Mint ≈ latest |
+| `same-series` | Solo point-releases de la serie/major local (taller multi-LTS) |
+| `latest` | Siempre la release más nueva publicada |
+
+- Con `same-series` + `--hint-newer-lts`: nota informativa sin OUTDATED.
+- Fedora: caminar releases nuevas hasta encontrar ISO real.
+- Kali/CachyOS/Tails/Proxmox/Clonezilla/SystemRescue/Rescuezilla: latest absoluto (sin policy).
 
 ## Fechas en disco
 
@@ -122,7 +126,7 @@ Cambia con el tiempo; **no hardcodear versiones en código**. Última revisión 
 | `CHANGELOG.md` | Releases |
 | `CONTRIBUTING.md` | Contribuciones |
 | `AGENTS.md` / `CLAUDE.md` | Agentes |
-| `docs/PHASED_PLAN.md` | Roadmap ejecutable (fase actual: **5**) |
+| `docs/PHASED_PLAN.md` | Roadmap ejecutable (fase actual: **6**) |
 | `docs/WINDOWS.md` | Pruebas desde PowerShell / Docker Desktop |
 | `docs/ARCHITECTURE.md` | Módulos y flujos |
 

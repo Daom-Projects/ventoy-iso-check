@@ -3,6 +3,21 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.8.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 5:** política de actualización `--policy latest|latest-lts|same-series`.
+  - Default: `latest-lts` (Ubuntu server/LTS; Fedora/Mint ≈ latest).
+  - `same-series`: solo point-releases de la serie local (taller multi-LTS).
+  - `--hint-newer-lts`: anota LTS/release más nueva sin marcar OUTDATED.
+- Aplica a Ubuntu, Budgie, Mint, Fedora, Pop!_OS; cache key incluye policy.
+
+### Cambiado
+
+- Versión 0.7.0 → 0.8.0.
+- Plan: Fase 5 done; siguiente Fase 6 (suggest + más distros).
+
 ## [0.7.0] — 2026-07-25
 
 ### Añadido

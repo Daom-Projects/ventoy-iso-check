@@ -8,6 +8,11 @@ from functools import lru_cache
 import httpx
 
 from ventoy_iso_check.models import CatalogEntry
+from ventoy_iso_check.policy import (
+    UpgradePolicy,
+    hint_note,
+    pick_target,
+)
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +27,7 @@ class ResolveResult:
     page: str | None = None
     note: str | None = None
     error: str | None = None
+    policy: str | None = None
 
 
 def _client() -> httpx.Client:
@@ -69,16 +75,14 @@ def _ubuntu_series(ver: str) -> str:
     return ver
 
 
-def resolve_ubuntu(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
-    """Ubuntu meta-release with LTS-aware upgrade target.
-
-    Policy (what users expect for a Ventoy multi-ISO stick):
-    - ``latest`` = newest **supported LTS** when local is LTS or live-server,
-      otherwise newest supported release overall.
-    - Point-releases within the same series are still considered (e.g. 24.04.3 → 24.04.4),
-      but a newer LTS (26.04) always wins over staying on 24.04.x.
-    - ``note`` mentions the current point-release of the local series when it differs.
-    """
+def resolve_ubuntu(
+    entry: CatalogEntry,
+    local_version: str | None,
+    *,
+    policy: UpgradePolicy = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
+) -> ResolveResult:
+    """Ubuntu meta-release with upgrade policy (latest / latest-lts / same-series)."""
     edition = (entry.edition or "desktop").lower()
     try:
         with _client() as client:
@@ -110,9 +114,6 @@ def resolve_ubuntu(entry: CatalogEntry, local_version: str | None) -> ResolveRes
             series_best: str | None = None
             local_clean = _ubuntu_clean_version(local_version) if local_version else None
             local_series = _ubuntu_series(local_clean) if local_clean else None
-            local_is_lts = bool(
-                local_series and local_series.split(".")[-1:] == ["04"]
-            )
 
             if local_series:
                 series_matches = [
@@ -122,23 +123,22 @@ def resolve_ubuntu(entry: CatalogEntry, local_version: str | None) -> ResolveRes
                 ]
                 series_best = _best_version(series_matches)
 
-            # Upgrade target:
-            # - live-server / LTS local → latest LTS (e.g. 24.04.4 → 26.04)
-            # - interim desktop → latest supported overall (often the new LTS)
-            prefer_lts = edition == "live-server" or local_is_lts or not local_clean
-            target = latest_lts if prefer_lts else latest_any
-            if not target:
-                target = latest_any
-            # If series has a newer point than target somehow, keep the higher
-            if series_best and target:
-                from packaging.version import InvalidVersion, Version
+            # Default semantics when policy is latest-lts:
+            # live-server and LTS locals track LTS; interim tracks absolute latest.
+            effective = policy
+            if policy == UpgradePolicy.LATEST_LTS:
+                local_is_lts = bool(
+                    local_series and local_series.split(".")[-1:] == ["04"]
+                )
+                if edition != "live-server" and local_clean and not local_is_lts:
+                    effective = UpgradePolicy.LATEST
 
-                try:
-                    if Version(series_best) > Version(target):
-                        target = series_best
-                except InvalidVersion:
-                    pass
-
+            target = pick_target(
+                policy=effective,
+                series_best=series_best,
+                latest_lts=latest_lts,
+                absolute_latest=latest_any,
+            )
             if not target:
                 return ResolveResult(error="Could not determine Ubuntu version")
 
@@ -155,55 +155,81 @@ def resolve_ubuntu(entry: CatalogEntry, local_version: str | None) -> ResolveRes
                     url = url_alt
 
             notes: list[str] = []
-            if series_best and series_best != target:
+            if series_best and series_best != target and policy != UpgradePolicy.SAME_SERIES:
                 notes.append(
-                    f"Serie local al día en {series_best}; LTS/objetivo recomendado: {target}"
+                    f"Serie local al día en {series_best}; objetivo ({policy.value}): {target}"
                 )
-            if latest_lts and latest_any and latest_lts != latest_any:
-                notes.append(f"Última LTS={latest_lts}; última release={latest_any}")
+            hn = hint_note(
+                policy=policy,
+                series_best=series_best,
+                absolute_latest=latest_any,
+                latest_lts=latest_lts,
+                enabled=hint_newer,
+            )
+            if hn:
+                notes.append(hn)
+            notes.append(f"policy={policy.value}")
 
             return ResolveResult(
                 latest_version=target,
                 download_url=url,
                 page=f"https://releases.ubuntu.com/{series}/",
                 note="; ".join(notes) if notes else None,
+                policy=policy.value,
             )
     except Exception as e:
         log.debug("ubuntu resolve failed: %s", e)
         return ResolveResult(error=str(e), page=entry.page)
 
 
-def resolve_ubuntu_budgie(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
-    """Ubuntu Budgie: prefer newest release; note if local series still has a point update."""
+def resolve_ubuntu_budgie(
+    entry: CatalogEntry,
+    local_version: str | None,
+    *,
+    policy: UpgradePolicy = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
+) -> ResolveResult:
+    """Ubuntu Budgie with upgrade policy."""
     try:
         with _client() as client:
             r = client.get("https://cdimage.ubuntu.com/ubuntu-budgie/releases/")
             r.raise_for_status()
             versions = _find_versions(r.text, r'href="(\d+\.\d+(?:\.\d+)?)/"')
             versions = [v for v in versions if not v.startswith("0")]
-            latest = _best_version(versions)
-            if not latest:
+            absolute = _best_version(versions)
+            if not absolute:
                 return ResolveResult(error="No budgie releases found", page=entry.page)
 
             series_best = None
-            note = None
             if local_version:
                 loc_series = _ubuntu_series(local_version)
                 series_vers = [
-                    v for v in versions if v == loc_series or v.startswith(loc_series + ".")
+                    v
+                    for v in versions
+                    if v == loc_series or v.startswith(loc_series + ".")
                 ]
                 series_best = _best_version(series_vers)
-                if series_best and series_best != latest:
-                    note = (
-                        f"Serie local al día en {series_best}; "
-                        f"release más nueva: {latest}"
-                    )
 
-            series = _ubuntu_series(latest)
-            fname = f"ubuntu-budgie-{latest}-desktop-amd64.iso"
+            # Treat .04 as LTS-like for budgie
+            lts_like = [
+                v
+                for v in versions
+                if len(v.split(".")) >= 2 and v.split(".")[1] == "04"
+            ]
+            latest_lts = _best_version(lts_like) or absolute
+
+            target = pick_target(
+                policy=policy,
+                series_best=series_best,
+                latest_lts=latest_lts,
+                absolute_latest=absolute,
+            ) or absolute
+
+            series = _ubuntu_series(target)
+            fname = f"ubuntu-budgie-{target}-desktop-amd64.iso"
             url = (
                 f"https://cdimage.ubuntu.com/ubuntu-budgie/releases/"
-                f"{latest}/release/{fname}"
+                f"{target}/release/{fname}"
             )
             head = client.head(url)
             if head.status_code >= 400:
@@ -211,17 +237,39 @@ def resolve_ubuntu_budgie(entry: CatalogEntry, local_version: str | None) -> Res
                     f"https://cdimage.ubuntu.com/ubuntu-budgie/releases/"
                     f"{series}/release/{fname}"
                 )
+            notes: list[str] = []
+            if series_best and series_best != target and policy != UpgradePolicy.SAME_SERIES:
+                notes.append(
+                    f"Serie local {series_best}; objetivo ({policy.value}): {target}"
+                )
+            hn = hint_note(
+                policy=policy,
+                series_best=series_best,
+                absolute_latest=absolute,
+                latest_lts=latest_lts,
+                enabled=hint_newer,
+            )
+            if hn:
+                notes.append(hn)
+            notes.append(f"policy={policy.value}")
             return ResolveResult(
-                latest_version=latest,
+                latest_version=target,
                 download_url=url,
-                page=f"https://cdimage.ubuntu.com/ubuntu-budgie/releases/{latest}/",
-                note=note,
+                page=f"https://cdimage.ubuntu.com/ubuntu-budgie/releases/{target}/",
+                note="; ".join(notes),
+                policy=policy.value,
             )
     except Exception as e:
         return ResolveResult(error=str(e), page=entry.page)
 
 
-def resolve_popos(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+def resolve_popos(
+    entry: CatalogEntry,
+    local_version: str | None,
+    *,
+    policy: UpgradePolicy = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
+) -> ResolveResult:
     """Pop!_OS ISOs on iso.pop-os.org (no public dir listing; probe builds).
 
     Filename: pop-os_{series}_amd64_{flavor}_{build}.iso
@@ -294,7 +342,13 @@ def resolve_popos(entry: CatalogEntry, local_version: str | None) -> ResolveResu
                             pass
                         break
 
-            chosen = newer_series_best or best
+            series_best_t = best
+            absolute_t = newer_series_best or best
+            if policy == UpgradePolicy.SAME_SERIES:
+                chosen = series_best_t or absolute_t
+            else:
+                chosen = absolute_t or series_best_t
+
             if not chosen:
                 return ResolveResult(
                     error="No Pop!_OS ISO found via probe",
@@ -303,19 +357,32 @@ def resolve_popos(entry: CatalogEntry, local_version: str | None) -> ResolveResu
 
             s, build, url = chosen
             latest = f"{s}-r{build}"
-            note = None
+            notes: list[str] = []
             if local_build is not None and s == series and build == local_build:
-                note = f"Build actual {flavor} r{build}"
+                notes.append(f"Build actual {flavor} r{build}")
             elif local_build is not None and s == series and build > local_build:
-                note = f"Nuevo build {flavor}: r{local_build} → r{build}"
-            elif newer_series_best:
-                note = f"Nueva serie Pop!_OS {s} disponible"
+                notes.append(f"Nuevo build {flavor}: r{local_build} → r{build}")
+            if newer_series_best and policy != UpgradePolicy.SAME_SERIES:
+                notes.append(f"Nueva serie Pop!_OS {newer_series_best[0]} disponible")
+            if (
+                policy == UpgradePolicy.SAME_SERIES
+                and hint_newer
+                and newer_series_best
+                and series_best_t
+            ):
+                notes.append(
+                    f"Serie local {series}-r{series_best_t[1]}; "
+                    f"hay serie más nueva {newer_series_best[0]}-r{newer_series_best[1]} "
+                    f"(ignorada por policy=same-series)"
+                )
+            notes.append(f"policy={policy.value}")
 
             return ResolveResult(
                 latest_version=latest,
                 download_url=url,
                 page=entry.page or "https://system76.com/pop/download/",
-                note=note,
+                note="; ".join(notes),
+                policy=policy.value,
             )
     except Exception as e:
         return ResolveResult(
@@ -324,38 +391,64 @@ def resolve_popos(entry: CatalogEntry, local_version: str | None) -> ResolveResu
         )
 
 
-def resolve_linuxmint(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
-    """Always target the newest Mint stable; note if local major is only point-behind."""
+def resolve_linuxmint(
+    entry: CatalogEntry,
+    local_version: str | None,
+    *,
+    policy: UpgradePolicy = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
+) -> ResolveResult:
+    """Linux Mint with upgrade policy (same-series = same major)."""
     edition = entry.edition or "cinnamon"
     try:
         with _client() as client:
             r = client.get("https://mirrors.kernel.org/linuxmint/stable/")
             r.raise_for_status()
             versions = _find_versions(r.text, r'href="(\d+(?:\.\d+)?)/"')
-            latest = _best_version(versions)
-            if not latest:
+            absolute = _best_version(versions)
+            if not absolute:
                 return ResolveResult(error="No Mint versions", page=entry.page)
 
-            note = None
+            series_best = None
             if local_version:
                 major = local_version.split(".")[0]
                 same = [
                     v for v in versions if v == major or v.startswith(major + ".")
                 ]
                 series_best = _best_version(same)
-                if series_best and series_best != latest:
-                    note = (
-                        f"Serie local al día en {series_best}; "
-                        f"release más nueva: {latest}"
-                    )
 
-            fname = f"linuxmint-{latest}-{edition}-64bit.iso"
-            url = f"https://mirrors.kernel.org/linuxmint/stable/{latest}/{fname}"
+            # Mint has no separate LTS stream; latest-lts ≈ latest
+            target = pick_target(
+                policy=policy,
+                series_best=series_best,
+                latest_lts=absolute,
+                absolute_latest=absolute,
+            ) or absolute
+
+            notes: list[str] = []
+            if series_best and series_best != target and policy != UpgradePolicy.SAME_SERIES:
+                notes.append(
+                    f"Serie local {series_best}; objetivo ({policy.value}): {target}"
+                )
+            hn = hint_note(
+                policy=policy,
+                series_best=series_best,
+                absolute_latest=absolute,
+                latest_lts=absolute,
+                enabled=hint_newer,
+            )
+            if hn:
+                notes.append(hn)
+            notes.append(f"policy={policy.value}")
+
+            fname = f"linuxmint-{target}-{edition}-64bit.iso"
+            url = f"https://mirrors.kernel.org/linuxmint/stable/{target}/{fname}"
             return ResolveResult(
-                latest_version=latest,
+                latest_version=target,
                 download_url=url,
                 page=entry.page,
-                note=note,
+                note="; ".join(notes),
+                policy=policy.value,
             )
     except Exception as e:
         return ResolveResult(error=str(e), page=entry.page)
@@ -423,11 +516,14 @@ def _fedora_list_iso(
     return ver, base + fname, None
 
 
-def resolve_fedora(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
-    """Always target the newest Fedora release with a published ISO.
-
-    Previously pinned to the local major (e.g. 43) even when 44 existed.
-    """
+def resolve_fedora(
+    entry: CatalogEntry,
+    local_version: str | None,
+    *,
+    policy: UpgradePolicy = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
+) -> ResolveResult:
+    """Fedora with upgrade policy (same-series = same major number)."""
     edition = entry.edition or "Workstation"
     arch = entry.arch or "x86_64"
     try:
@@ -447,41 +543,74 @@ def resolve_fedora(entry: CatalogEntry, local_version: str | None) -> ResolveRes
             if not releases:
                 return ResolveResult(error="No Fedora releases", page=entry.page)
 
-            # Walk newest → older until we find a published Workstation/Silverblue ISO
-            # (brand-new dirs can exist before ISOs are uploaded).
-            ver = url = err = None
-            chosen_rel = None
-            for rel in releases[:6]:  # don't walk forever
-                ver, url, err = _fedora_list_iso(client, str(rel), edition, arch)
+            # Map release number → (ver, url) for available ISOs
+            available: dict[str, tuple[str, str]] = {}
+            for rel in releases[:8]:
+                ver, url, _err = _fedora_list_iso(client, str(rel), edition, arch)
                 if ver and url:
-                    chosen_rel = str(rel)
-                    break
+                    available[str(rel)] = (ver, url)
 
-            if not ver or not url:
+            if not available:
                 return ResolveResult(
                     latest_version=str(releases[0]),
                     page=entry.page,
-                    note=err or "No ISO publicada en las releases recientes",
+                    note="No ISO publicada en las releases recientes",
                 )
 
-            note = None
+            absolute_rel = max(available.keys(), key=int)
+            absolute_ver, absolute_url = available[absolute_rel]
+
+            local_major = None
             if local_version:
                 local_major = local_version.split("-")[0].split(".")[0]
-                if local_major.isdigit() and chosen_rel and int(local_major) < int(
-                    chosen_rel
-                ):
-                    note = (
-                        f"Release local {local_major}; "
-                        f"Fedora más nueva con ISO: {chosen_rel}"
-                    )
-                elif local_major == chosen_rel and local_version != ver:
-                    note = f"Mismo major {chosen_rel}; compose ISO: {ver}"
+
+            series_ver = series_url = None
+            if local_major and local_major in available:
+                series_ver, series_url = available[local_major]
+            elif local_major and local_major.isdigit():
+                # try list that major even if not in top walk
+                ver, url, _e = _fedora_list_iso(
+                    client, local_major, edition, arch
+                )
+                if ver and url:
+                    series_ver, series_url = ver, url
+                    available[local_major] = (ver, url)
+
+            target_ver = absolute_ver
+            target_url = absolute_url
+            if policy == UpgradePolicy.SAME_SERIES and series_ver:
+                target_ver, target_url = series_ver, series_url
+            # latest / latest-lts both mean newest Fedora major
+            elif policy in (UpgradePolicy.LATEST, UpgradePolicy.LATEST_LTS):
+                target_ver, target_url = absolute_ver, absolute_url
+
+            notes: list[str] = []
+            if (
+                local_major
+                and absolute_rel != local_major
+                and policy != UpgradePolicy.SAME_SERIES
+            ):
+                notes.append(
+                    f"Release local {local_major}; Fedora más nueva: {absolute_rel}"
+                )
+            if (
+                policy == UpgradePolicy.SAME_SERIES
+                and hint_newer
+                and local_major
+                and absolute_rel != local_major
+            ):
+                notes.append(
+                    f"Serie local {local_major}; hay Fedora {absolute_rel} "
+                    f"(ignorada por policy=same-series)"
+                )
+            notes.append(f"policy={policy.value}")
 
             return ResolveResult(
-                latest_version=ver,
-                download_url=url,
+                latest_version=target_ver,
+                download_url=target_url,
                 page=entry.page,
-                note=note,
+                note="; ".join(notes),
+                policy=policy.value,
             )
 
     except Exception as e:
@@ -852,16 +981,39 @@ def resolve_cached(resolver_name: str, entry_id: str, local_version: str | None)
     raise NotImplementedError
 
 
-def resolve(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+def resolve(
+    entry: CatalogEntry,
+    local_version: str | None,
+    *,
+    policy: UpgradePolicy | str = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
+) -> ResolveResult:
+    if isinstance(policy, str):
+        policy = UpgradePolicy.parse(policy)
     fn = RESOLVERS.get(entry.resolver or "none")
     if not fn:
-        return ResolveResult(page=entry.page, note=entry.note or f"Resolver desconocido: {entry.resolver}")
+        return ResolveResult(
+            page=entry.page,
+            note=entry.note or f"Resolver desconocido: {entry.resolver}",
+        )
     try:
-        result = fn(entry, local_version)
+        from ventoy_iso_check.policy import POLICY_AWARE_RESOLVERS
+
+        if (entry.resolver or "none") in POLICY_AWARE_RESOLVERS:
+            result = fn(
+                entry,
+                local_version,
+                policy=policy,
+                hint_newer=hint_newer,
+            )
+        else:
+            result = fn(entry, local_version)
     except Exception as e:
         return ResolveResult(error=str(e), page=entry.page, note=entry.note)
     if entry.page and not result.page:
         result.page = entry.page
     if entry.note and not result.note:
         result.note = entry.note
+    if result.policy is None:
+        result.policy = policy.value
     return result

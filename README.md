@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.7.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0-green.svg)](./CHANGELOG.md)
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
@@ -34,12 +34,13 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.7.0)
+## Características (v0.8.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
 - **File date** + **Age** (mtime o **sidecar** `downloaded_at`).
 - Sidecars **`.meta.json`**: fecha fiable, URL, SHA-256 opcional.
+- **Política multi-LTS**: `--policy latest|latest-lts|same-series`.
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
 - **Cache de latest** (TTL 12 h, `~/.cache/ventoy-iso-check/`).
@@ -223,8 +224,18 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `--cache-dir DIR` | Ubicación del cache (default `~/.cache/ventoy-iso-check`) |
 | `--ttl-hours N` | TTL del cache (default 12) |
 | `--verify-checksum` | Verifica SHA-256 de sidecars (lento) |
+| `--policy POLICY` | `latest` \| `latest-lts` (default) \| `same-series` |
+| `--hint-newer-lts` | Con same-series, anota LTS/release más nueva |
 | `--no-dates` | Oculta File date / Age |
 | `-V` / `--version` | Versión del paquete |
+
+```bash
+# Taller: conservar 24.04 y 26.04 sin marcar 24.04 como OUTDATED
+uv run ventoy-iso-check check /mnt/e --only ubuntu --policy same-series --hint-newer-lts
+
+# Objetivo = última LTS (default para server/LTS)
+uv run ventoy-iso-check check /mnt/e --only ubuntu --policy latest-lts
+```
 
 ### Sidecars (`.iso.meta.json`)
 
@@ -372,7 +383,8 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 2 | Espacio libre pre-download | **done** (v0.5.0) |
 | 3 | Cache de latest (TTL) | **done** (v0.6.0) |
 | 4 | Sidecar metadata + checksum | **done** (v0.7.0) |
-| 5–9 | Multi-LTS, catálogo, tests, export, CI | pending |
+| 5 | Multi-LTS / same-series | **done** (v0.8.0) |
+| 6–9 | suggest, tests, export, CI | pending |
 
 Prompt para un agente:
 

@@ -14,6 +14,7 @@ from ventoy_iso_check.disk import SpaceVerdict, check_download_space
 from ventoy_iso_check.filters import filter_items
 from ventoy_iso_check.meta import seal_tree, write_meta_for_iso
 from ventoy_iso_check.paths import default_ventoy_root, project_root
+from ventoy_iso_check.policy import UpgradePolicy
 from ventoy_iso_check.reporters import print_table, write_json, write_links_markdown
 from ventoy_iso_check.sisou_bridge import default_sisou_toml, run_sisou
 
@@ -240,6 +241,16 @@ def check_cmd(
         "--verify-checksum",
         help="Verificar SHA-256 de sidecars .meta.json (lento en USB).",
     ),
+    policy: str = typer.Option(
+        "latest-lts",
+        "--policy",
+        help="Upgrade policy: latest | latest-lts | same-series (default: latest-lts).",
+    ),
+    hint_newer: bool = typer.Option(
+        False,
+        "--hint-newer-lts",
+        help="Con policy=same-series, anotar si hay LTS/release más nueva disponible.",
+    ),
     sort_by: str = typer.Option(
         "path",
         "--sort",
@@ -253,6 +264,11 @@ def check_cmd(
     if not ventoy.is_dir():
         console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
         raise typer.Exit(2)
+    try:
+        pol = UpgradePolicy.parse(policy)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(2) from e
     only_set = {s.strip() for s in only.split(",")} if only else None
     cache = None
     if not offline:
@@ -270,6 +286,8 @@ def check_cmd(
         only=only_set,
         cache=cache,
         verify_checksum=verify_checksum,
+        policy=pol,
+        hint_newer=hint_newer,
     )
     if cache is not None:
         console.print(f"[dim]{cache.stats_line()}[/dim]")
@@ -318,6 +336,12 @@ def links_cmd(
     refresh: bool = typer.Option(False, "--refresh"),
     cache_dir: Optional[Path] = typer.Option(None, "--cache-dir"),
     ttl_hours: float = typer.Option(12.0, "--ttl-hours"),
+    policy: str = typer.Option(
+        "latest-lts",
+        "--policy",
+        help="Upgrade policy: latest | latest-lts | same-series.",
+    ),
+    hint_newer: bool = typer.Option(False, "--hint-newer-lts"),
     sort_by: str = typer.Option("path", "--sort"),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
@@ -327,6 +351,11 @@ def links_cmd(
     if not ventoy.is_dir():
         console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
         raise typer.Exit(2)
+    try:
+        pol = UpgradePolicy.parse(policy)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(2) from e
     only_set = {s.strip() for s in only.split(",")} if only else None
     cache = _build_cache(
         no_cache=no_cache,
@@ -341,6 +370,8 @@ def links_cmd(
         online=True,
         only=only_set,
         cache=cache,
+        policy=pol,
+        hint_newer=hint_newer,
     )
     if cache is not None:
         console.print(f"[dim]{cache.stats_line()}[/dim]")
