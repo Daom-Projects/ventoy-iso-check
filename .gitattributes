@@ -1,0 +1,12 @@
+# Shell scripts always LF (Docker/Linux shebang breaks with CRLF)
+*.sh text eol=lf
+docker/entrypoint.sh text eol=lf
+
+# PowerShell can be CRLF on Windows
+*.ps1 text eol=crlf
+
+# Python / YAML / TOML
+*.py text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf

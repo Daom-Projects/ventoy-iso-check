@@ -43,6 +43,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY catalog.yaml sisou.toml README.md LICENSE ./
 COPY src ./src
+# Copiar entrypoint y forzar LF (evita 'sh\r' si el build se hizo desde Windows/USB)
 COPY docker/entrypoint.sh /entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -51,10 +52,11 @@ ENV PATH="/app/.venv/bin:$PATH" \
     VIRTUAL_ENV=/app/.venv \
     PYTHONDONTWRITEBYTECODE=1
 
-RUN chmod +x /entrypoint.sh \
+RUN sed -i 's/\r$//' /entrypoint.sh \
+    && chmod +x /entrypoint.sh \
     && mkdir -p /ventoy \
     && chown -R vic:vic /app /ventoy
 
 # root por defecto para montajes host con permisos mixtos; se puede -u 1000
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["check"]
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
+CMD ["menu"]

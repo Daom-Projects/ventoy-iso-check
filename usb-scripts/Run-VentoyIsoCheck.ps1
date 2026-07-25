@@ -4,22 +4,25 @@
   Lanza ventoy-iso-check desde el disco Ventoy usando Docker.
 
 .DESCRIPTION
-  Sin argumentos abre el **menú interactivo**.
-  Requiere Docker Desktop en marcha.
-  Monta la raíz del USB (letra de esta carpeta) en /ventoy.
+  - Sin argumentos: menú interactivo.
+  - Detecta la letra de unidad del USB automáticamente (E:, F:, D:, …).
+  - Requiere Docker Desktop en marcha.
+  - Monta la raíz del USB en /ventoy.
 
 .EXAMPLE
   .\Run-VentoyIsoCheck.ps1
   .\Run-VentoyIsoCheck.ps1 scan
   .\Run-VentoyIsoCheck.ps1 check --only-outdated --urls
-  .\Run-VentoyIsoCheck.ps1 bootloaders
   .\Run-VentoyIsoCheck.ps1 -Rebuild
+  .\Run-VentoyIsoCheck.ps1 -Drive F
 #>
 [CmdletBinding()]
 param(
     [switch]$Menu,
     [switch]$Rebuild,
     [switch]$NoMenu,
+    # Letra de unidad del Ventoy (sin ':'). Si se omite, se usa la del script.
+    [string]$Drive = "",
     [string]$Image = "ventoy-iso-check:local",
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$CliArgs
@@ -43,23 +46,40 @@ if (Test-Path (Join-Path $ScriptDir "Dockerfile")) {
 } elseif (Test-Path (Join-Path $ScriptDir "ventoy-iso-check\Dockerfile")) {
     $RepoRoot = (Resolve-Path (Join-Path $ScriptDir "ventoy-iso-check")).Path
 } else {
-    Write-Err "No se encontró el repo (Dockerfile)."
+    Write-Err "No se encontro el repo (Dockerfile)."
     Write-Err "Esperado: <USB>\Scripts\ventoy-iso-check\"
     exit 2
 }
 
-$DriveRoot = (Get-Item $RepoRoot).PSDrive.Root
-if (-not $DriveRoot) {
-    $DriveRoot = [System.IO.Path]::GetPathRoot($RepoRoot)
+# Letra de unidad: -Drive F  o  auto desde la ruta del script
+if ($Drive) {
+    $DriveLetter = $Drive.Trim().TrimEnd(':').TrimEnd('\').ToUpper()
+} else {
+    $DriveRoot = (Get-Item $RepoRoot).PSDrive.Root
+    if (-not $DriveRoot) {
+        $DriveRoot = [System.IO.Path]::GetPathRoot($RepoRoot)
+    }
+    $DriveLetter = $DriveRoot.TrimEnd('\').TrimEnd(':').ToUpper()
 }
-$DriveLetter = $DriveRoot.TrimEnd('\').TrimEnd(':')
+
+if (-not $DriveLetter -or $DriveLetter.Length -ne 1) {
+    Write-Err "No se pudo detectar la letra de unidad. Usa: -Drive E"
+    exit 2
+}
+
+$WindowsRoot = "${DriveLetter}:\"
+if (-not (Test-Path $WindowsRoot)) {
+    Write-Err "La unidad ${DriveLetter}: no existe o no esta montada."
+    Write-Err "Conecta el USB y/o pasa -Drive <letra> (ej. -Drive F)"
+    exit 2
+}
 
 Write-Info "Repo:   $RepoRoot"
-Write-Info "Ventoy: ${DriveLetter}:\"
+Write-Info "Ventoy: $WindowsRoot  (cualquier letra; ahora ${DriveLetter}:)"
 Write-Info "Image:  $Image"
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Write-Err "Docker no está instalado o no está en el PATH."
+    Write-Err "Docker no esta instalado o no esta en el PATH."
     Write-Err "Instala Docker Desktop: https://www.docker.com/products/docker-desktop/"
     exit 3
 }
@@ -71,26 +91,37 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Info "Docker OK"
 
+# Comprobar File sharing basico (listar carpeta en host)
+$hostHints = @("Linux", "Bootloaders", "Scripts", "Herramientas", "Windows")
+$seen = 0
+foreach ($h in $hostHints) {
+    if (Test-Path (Join-Path $WindowsRoot $h)) { $seen++ }
+}
+if ($seen -eq 0) {
+    Write-Warn "En ${WindowsRoot} no se ven carpetas tipicas (Linux/Bootloaders/...). ¿Es este el USB Ventoy?"
+} else {
+    Write-Info "Host OK: se ven $seen carpetas tipicas en ${WindowsRoot}"
+}
+
 docker image inspect $Image 1>$null 2>$null
 $imageExists = ($LASTEXITCODE -eq 0)
 if ($Rebuild -or -not $imageExists) {
-    Write-Info "Construyendo imagen (puede tardar la primera vez)…"
+    Write-Info "Construyendo imagen (OBLIGATORIO si viste error sh\r)…"
     Push-Location $RepoRoot
     try {
-        docker build -t $Image .
+        docker build --no-cache -t $Image .
         if ($LASTEXITCODE -ne 0) {
-            Write-Err "docker build falló (código $LASTEXITCODE)"
+            Write-Err "docker build fallo (codigo $LASTEXITCODE)"
             exit $LASTEXITCODE
         }
     } finally {
         Pop-Location
     }
 } else {
-    Write-Info "Imagen ya presente (usa -Rebuild para reconstruir)"
+    Write-Info "Imagen ya presente (usa -Rebuild si cambiaste el codigo o viste sh\r)"
 }
 
-# --- Argumentos del contenedor ---
-# Default: menú interactivo (no scan silencioso)
+# Argumentos
 $wantMenu = $false
 if ($Menu) {
     $wantMenu = $true
@@ -105,71 +136,70 @@ if ($Menu) {
     $containerArgs = @("menu")
 }
 
-# --- Montaje Docker Desktop en Windows ---
-# Formas que suelen funcionar (en orden de preferencia):
-#   E:\:/ventoy   (documentado por Docker Desktop)
-#   //e/:/ventoy
-#   E:/ventoy     (a veces monta vacío — NO preferir)
-$volCandidates = @(
-    ("{0}:\:/ventoy" -f $DriveLetter),
-    ("//{0}/:/ventoy" -f $DriveLetter.ToLower()),
-    ("{0}:/ventoy" -f $DriveLetter)
-)
+# Montaje Docker Desktop Windows
+# Documentado: -v E:\:/ventoy
+# Alternativas: //e/:/ventoy
+$volPrimary = "${DriveLetter}:\:/ventoy"
+$volAlt = "//$($DriveLetter.ToLower())/:/ventoy"
 
-function Test-VentoyMount([string]$VolSpec) {
-    # ¿Se ven carpetas del USB dentro de /ventoy?
+function Test-Mount([string]$Vol) {
+    # Entrypoint forzado a sh del sistema (no el del script) para el probe
     $probe = & docker run --rm --entrypoint /bin/sh `
-        -v $VolSpec $Image `
-        -c "ls -1 /ventoy 2>/dev/null | wc -l" 2>$null
-    if ($LASTEXITCODE -ne 0) { return $false }
+        -v $Vol `
+        $Image `
+        -c "test -d /ventoy && ls -1 /ventoy 2>/dev/null | head -5 | wc -l" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+    $line = ("$probe" -split "`n" | Where-Object { $_ -match '^\s*\d+\s*$' } | Select-Object -Last 1)
     $n = 0
-    [void][int]::TryParse(("${probe}".Trim()), [ref]$n)
+    if ($line) { [void][int]::TryParse($line.Trim(), [ref]$n) }
     return ($n -ge 1)
 }
 
+Write-Info "Probando montaje: -v $volPrimary"
 $vol = $null
-foreach ($cand in $volCandidates) {
-    Write-Info "Probando montaje: -v $cand"
-    if (Test-VentoyMount $cand) {
-        $vol = $cand
-        Write-Info "Montaje OK: $cand"
-        break
+if (Test-Mount $volPrimary) {
+    $vol = $volPrimary
+    Write-Info "Montaje OK: $volPrimary"
+} else {
+    Write-Info "Probando montaje: -v $volAlt"
+    if (Test-Mount $volAlt) {
+        $vol = $volAlt
+        Write-Info "Montaje OK: $volAlt"
     }
 }
 
 if (-not $vol) {
-    # Último intento: forma clásica aunque el probe falle (algunos shells)
-    $vol = ("{0}:\:/ventoy" -f $DriveLetter)
-    Write-Warn "No se pudo validar el montaje; usando $vol"
-    Write-Warn "Si sale total=0 ISOs, en Docker Desktop: Settings → Resources → File sharing y comparte la unidad ${DriveLetter}:"
+    $vol = $volPrimary
+    Write-Warn "No se valido el montaje; se usara: $vol"
+    Write-Warn "Si total=0 ISOs:"
+    Write-Warn "  Docker Desktop -> Settings -> Resources -> File sharing"
+    Write-Warn "  Marca la unidad ${DriveLetter}:  (Apply & Restart)"
+    Write-Warn "  Luego: .\Run-VentoyIsoCheck.ps1 -Rebuild"
 }
 
-Write-Info "Comando: docker run --rm -it -v $vol $Image $($containerArgs -join ' ')"
+Write-Info "docker run --rm -it -v $vol $Image $($containerArgs -join ' ')"
 
-# -it siempre en menú (y en general para PowerShell interactivo)
-$base = @(
-    "run", "--rm",
+$dockerArgs = @(
+    "run", "--rm", "-it",
     "-e", "VENTOY_ROOT=/ventoy",
     "-v", $vol,
     $Image
 ) + $containerArgs
 
-if ($wantMenu -or [Environment]::UserInteractive) {
-    $base = @(
-        "run", "--rm", "-it",
-        "-e", "VENTOY_ROOT=/ventoy",
-        "-v", $vol,
-        $Image
-    ) + $containerArgs
-}
-
-& docker @base
+& docker @dockerArgs
 $code = $LASTEXITCODE
+
 if ($code -ne 0) {
     Write-Warn "docker exit=$code"
-    Write-Warn "Si el menú no aparece o no hay ISOs:"
-    Write-Warn "  1) Docker Desktop → Settings → Resources → File sharing → unidad ${DriveLetter}:"
-    Write-Warn "  2) Prueba: docker run --rm -it -v ${DriveLetter}:\:/ventoy $Image scan"
-    Write-Warn "  3) O con WSL+uv:  uv run ventoy-iso-check menu /mnt/e"
+    if ($code -eq 127) {
+        Write-Err "Error tipico de CRLF en entrypoint (sh\r). Solucion:"
+        Write-Err "  .\Run-VentoyIsoCheck.ps1 -Rebuild"
+        Write-Err "  (el Dockerfile ya corrige CRLF al construir)"
+    }
+    Write-Warn "Unidad distinta:  .\Run-VentoyIsoCheck.ps1 -Drive F"
+    Write-Warn "Sin Docker / WSL:  uv run ventoy-iso-check menu /mnt/<letra>"
 }
+
 exit $code

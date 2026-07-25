@@ -46,11 +46,31 @@ cd E:\Scripts
 .\Run-VentoyIsoCheck.ps1 -Rebuild   # reconstruir imagen Docker
 ```
 
-**Si sale `total=0` ISOs:** Docker Desktop no montó la unidad.
+### Unidad distinta a E:
 
-1. Docker Desktop → **Settings → Resources → File sharing** → habilita la unidad `E:`.
+El script detecta la letra del USB solo. Si hace falta forzarla:
+
+```powershell
+.\Run-VentoyIsoCheck.ps1 -Drive F
+.\Run-VentoyIsoCheck.ps1 -Drive D scan
+```
+
+### Error `sh\r` / `env: 'sh\r'`
+
+Línea Windows (CRLF) en el entrypoint. Reconstruir:
+
+```powershell
+.\Run-VentoyIsoCheck.ps1 -Rebuild
+```
+
+### Si sale `total=0` ISOs
+
+Docker Desktop no montó la unidad:
+
+1. Docker Desktop → **Settings → Resources → File sharing** → marca **esa** letra (`E:`, `F:`, …).
 2. Apply & Restart.
-3. Prueba: `docker run --rm -v E:\:/ventoy ventoy-iso-check:local scan`
+3. `.\Run-VentoyIsoCheck.ps1 -Rebuild`
+4. Prueba: `docker run --rm -v E:\:/ventoy ventoy-iso-check:local scan`
 
 Si PowerShell bloquea scripts:
 
