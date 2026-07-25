@@ -1,18 +1,22 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Lanza ventoy-iso-check desde el disco Ventoy.
+  Lanza ventoy-iso-check desde el USB Ventoy (Windows).
 
 .DESCRIPTION
-  Auto: intenta Docker; si el USB no se monta, usa WSL + uv.
-  En WSL el codigo corre desde ~/projects/ventoy-iso-check (ext4),
-  NO desde E:\ (el .venv en USB/9p falla con Operation not permitted).
-  Solo se usa /mnt/<letra> como VENTOY_ROOT (lectura de ISOs).
+  Por defecto usa Python/uv NATIVO en Windows (sin Docker, sin WSL).
+  Accede a E:\ (o la letra del USB) directamente.
+
+  El codigo y el .venv viven en:
+    %USERPROFILE%\projects\ventoy-iso-check
+  (disco del sistema; el USB solo aporta las ISOs via VENTOY_ROOT).
 
 .EXAMPLE
   .\Run-VentoyIsoCheck.ps1
+  .\Run-VentoyIsoCheck.ps1 scan
+  .\Run-VentoyIsoCheck.ps1 check --only-outdated --urls
+  .\Run-VentoyIsoCheck.ps1 bootloaders
   .\Run-VentoyIsoCheck.ps1 -Engine Wsl
-  .\Run-VentoyIsoCheck.ps1 -Engine Docker -Rebuild
   .\Run-VentoyIsoCheck.ps1 -Drive F
 #>
 [CmdletBinding()]
@@ -20,8 +24,9 @@ param(
     [switch]$Menu,
     [switch]$Rebuild,
     [switch]$NoMenu,
-    [ValidateSet("Auto", "Docker", "Wsl")]
-    [string]$Engine = "Auto",
+    # Native = uv en Windows (recomendado) | Wsl | Docker | Auto
+    [ValidateSet("Native", "Wsl", "Docker", "Auto")]
+    [string]$Engine = "Native",
     [string]$Drive = "",
     [string]$Image = "ventoy-iso-check:local",
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -36,264 +41,289 @@ function Write-Warn([string]$msg) { Write-Host "[ventoy-iso-check] $msg" -Foregr
 function Write-Err([string]$msg)  { Write-Host "[ventoy-iso-check] $msg" -ForegroundColor Red }
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$GitUrl = "https://github.com/Daom-Projects/ventoy-iso-check.git"
+$WinRepo = Join-Path $env:USERPROFILE "projects\ventoy-iso-check"
 
-# --- Repo en USB (solo para Docker build / localizar unidad) ---
-$RepoRoot = $null
+# --- Localizar repo en USB (solo para detectar letra de unidad / Docker build) ---
+$UsbRepo = $null
 if (Test-Path (Join-Path $ScriptDir "Dockerfile")) {
-    $RepoRoot = $ScriptDir
+    $UsbRepo = $ScriptDir
 } elseif (Test-Path (Join-Path (Split-Path $ScriptDir -Parent) "Dockerfile")) {
-    $RepoRoot = (Resolve-Path (Split-Path $ScriptDir -Parent)).Path
+    $UsbRepo = (Resolve-Path (Split-Path $ScriptDir -Parent)).Path
 } elseif (Test-Path (Join-Path $ScriptDir "ventoy-iso-check\Dockerfile")) {
-    $RepoRoot = (Resolve-Path (Join-Path $ScriptDir "ventoy-iso-check")).Path
-} else {
-    Write-Err "No se encontro el repo (Dockerfile). Esperado: <USB>\Scripts\ventoy-iso-check\"
-    exit 2
+    $UsbRepo = (Resolve-Path (Join-Path $ScriptDir "ventoy-iso-check")).Path
 }
 
+# --- Letra del USB ---
 if ($Drive) {
     $DriveLetter = $Drive.Trim().TrimEnd(':').TrimEnd('\').ToUpper()
+} elseif ($UsbRepo) {
+    $DriveRoot = (Get-Item $UsbRepo).PSDrive.Root
+    if (-not $DriveRoot) { $DriveRoot = [System.IO.Path]::GetPathRoot($UsbRepo) }
+    $DriveLetter = $DriveRoot.TrimEnd('\').TrimEnd(':').ToUpper()
 } else {
-    $DriveRoot = (Get-Item $RepoRoot).PSDrive.Root
-    if (-not $DriveRoot) { $DriveRoot = [System.IO.Path]::GetPathRoot($RepoRoot) }
+    # Si el script esta en E:\Scripts\, usar esa unidad
+    $DriveRoot = (Get-Item $ScriptDir).PSDrive.Root
     $DriveLetter = $DriveRoot.TrimEnd('\').TrimEnd(':').ToUpper()
 }
+
 if (-not $DriveLetter -or $DriveLetter.Length -ne 1) {
-    Write-Err "No se pudo detectar la letra de unidad. Usa: -Drive E"
+    Write-Err "No se detecto la letra del USB. Usa: -Drive E"
     exit 2
 }
-$WindowsRoot = "${DriveLetter}:\"
-if (-not (Test-Path $WindowsRoot)) {
+
+$VentoyRoot = "${DriveLetter}:\"
+if (-not (Test-Path $VentoyRoot)) {
     Write-Err "La unidad ${DriveLetter}: no existe."
     exit 2
 }
 
-Write-Info "Repo USB: $RepoRoot"
-Write-Info "Ventoy:   $WindowsRoot"
-Write-Info "Engine:   $Engine"
-
+# Argumentos CLI
 if ($Menu) {
-    $containerArgs = @("menu")
+    $AppArgs = @("menu")
 } elseif ($CliArgs -and $CliArgs.Count -gt 0) {
-    $containerArgs = @($CliArgs)
+    $AppArgs = @($CliArgs)
 } elseif ($NoMenu) {
-    $containerArgs = @("scan", "--sort", "age")
+    $AppArgs = @("scan", "--sort", "age")
 } else {
-    $containerArgs = @("menu")
+    $AppArgs = @("menu")
 }
 
-function ConvertTo-BashArgs([string[]]$Parts) {
-    $out = @()
-    foreach ($p in $Parts) {
-        if ($p -match "[\s'`"`$]") {
-            $esc = $p -replace "'", "'\''"
-            $out += "'$esc'"
-        } else {
-            $out += $p
-        }
-    }
-    return ($out -join " ")
-}
-$argsLine = ConvertTo-BashArgs $containerArgs
+Write-Info "Ventoy:  $VentoyRoot"
+Write-Info "Engine:  $Engine"
+Write-Info "Args:    $($AppArgs -join ' ')"
+Write-Info "WinRepo: $WinRepo"
 
-$hostIso = @(Get-ChildItem -Path (Join-Path $WindowsRoot "Linux") -Filter *.iso -ErrorAction SilentlyContinue).Count
-$hostIso += @(Get-ChildItem -Path (Join-Path $WindowsRoot "Herramientas") -Filter *.iso -ErrorAction SilentlyContinue).Count
-Write-Info "Host:     $hostIso ISO(s) en Linux/ + Herramientas/"
+$hostIso = @(Get-ChildItem -Path (Join-Path $VentoyRoot "Linux") -Filter *.iso -ErrorAction SilentlyContinue).Count
+$hostIso += @(Get-ChildItem -Path (Join-Path $VentoyRoot "Herramientas") -Filter *.iso -ErrorAction SilentlyContinue).Count
+Write-Info "Host:    $hostIso ISO(s) en Linux/ + Herramientas/"
 
 # =====================================================================
-# WSL + uv: codigo en ~/projects (Linux FS), ISOs en /mnt/<letra>
+# Native Windows: uv + Python del PC, acceso directo a E:\
+# =====================================================================
+function Install-UvWindows {
+    if (Get-Command uv -ErrorAction SilentlyContinue) { return $true }
+
+    $uvLocal = Join-Path $env:USERPROFILE ".local\bin\uv.exe"
+    if (Test-Path $uvLocal) {
+        $env:Path = "$(Split-Path $uvLocal);$env:Path"
+        if (Get-Command uv -ErrorAction SilentlyContinue) { return $true }
+    }
+
+    Write-Info "uv no esta en PATH. Intentando instalar (oficial)..."
+    try {
+        # Instalador oficial Astral (no requiere admin)
+        irm https://astral.sh/uv/install.ps1 | iex
+    } catch {
+        Write-Warn "install.ps1 fallo: $_"
+    }
+
+    $candidates = @(
+        (Join-Path $env:USERPROFILE ".local\bin"),
+        (Join-Path $env:USERPROFILE ".cargo\bin"),
+        (Join-Path $env:LOCALAPPDATA "uv\bin")
+    )
+    foreach ($d in $candidates) {
+        if (Test-Path (Join-Path $d "uv.exe")) {
+            $env:Path = "$d;$env:Path"
+            break
+        }
+    }
+
+    if (Get-Command uv -ErrorAction SilentlyContinue) { return $true }
+
+    Write-Err "No se pudo instalar uv automaticamente."
+    Write-Err "Opciones:"
+    Write-Err "  1) winget install astral-sh.uv"
+    Write-Err "  2) https://docs.astral.sh/uv/getting-started/installation/"
+    Write-Err "  3) Cierra y reabre PowerShell tras instalar"
+    return $false
+}
+
+function Ensure-WinRepo {
+    $parent = Split-Path $WinRepo -Parent
+    if (-not (Test-Path $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+
+    if (-not (Test-Path (Join-Path $WinRepo "pyproject.toml"))) {
+        if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            Write-Err "git no esta en PATH. Instala Git for Windows o copia el repo a:"
+            Write-Err "  $WinRepo"
+            if ($UsbRepo -and (Test-Path (Join-Path $UsbRepo "pyproject.toml"))) {
+                Write-Info "Copiando desde USB (sin .venv)..."
+                New-Item -ItemType Directory -Path $WinRepo -Force | Out-Null
+                # Robocopy excluyendo basura
+                & robocopy $UsbRepo $WinRepo /E /XD .venv .git __pycache__ .mypy_cache .ruff_cache .pytest_cache /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+                if (-not (Test-Path (Join-Path $WinRepo "pyproject.toml"))) {
+                    return $false
+                }
+                return $true
+            }
+            return $false
+        }
+        Write-Info "Clonando $GitUrl -> $WinRepo"
+        git clone --depth 1 $GitUrl $WinRepo
+    } else {
+        if (Test-Path (Join-Path $WinRepo ".git")) {
+            Write-Info "Actualizando $WinRepo (git pull)..."
+            Push-Location $WinRepo
+            try { git pull --ff-only 2>$null } catch { }
+            finally { Pop-Location }
+        }
+    }
+    return (Test-Path (Join-Path $WinRepo "pyproject.toml"))
+}
+
+function Invoke-NativeEngine {
+    Write-Info "=== Motor Native (Windows + uv, sin Docker) ==="
+
+    if (-not (Install-UvWindows)) { return 3 }
+    $uvVer = & uv --version 2>&1
+    Write-Info "uv: $uvVer"
+
+    if (-not (Ensure-WinRepo)) {
+        Write-Err "No hay repo en $WinRepo"
+        return 2
+    }
+
+    $env:VENTOY_ROOT = $VentoyRoot
+    # Por si el path del USB tiene barra final rara
+    $env:VENTOY_ROOT = $VentoyRoot.TrimEnd('\') + '\'
+
+    Push-Location $WinRepo
+    try {
+        Write-Info "uv sync en $WinRepo ..."
+        & uv sync
+        if ($LASTEXITCODE -ne 0) {
+            Write-Err "uv sync fallo (codigo $LASTEXITCODE)"
+            return $LASTEXITCODE
+        }
+
+        Write-Info "VENTOY_ROOT=$env:VENTOY_ROOT"
+        Write-Info "uv run ventoy-iso-check $($AppArgs -join ' ')"
+        # En consola Windows hay TTY: el menu funciona
+        & uv run ventoy-iso-check @AppArgs
+        return $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+}
+
+# =====================================================================
+# WSL (con TTY interactivo)
 # =====================================================================
 function Invoke-WslEngine {
     if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
-        Write-Err "WSL no esta instalado."
+        Write-Err "WSL no disponible."
         return 3
     }
-
     $letter = $DriveLetter.ToLower()
     $mnt = "/mnt/$letter"
-    $wslRepo = '$HOME/projects/ventoy-iso-check'
-    $gitUrl = "https://github.com/Daom-Projects/ventoy-iso-check.git"
+    $argsJoined = ($AppArgs | ForEach-Object {
+        if ($_ -match "[\s']") { "'" + ($_ -replace "'", "'\''") + "'" } else { $_ }
+    }) -join " "
 
-    Write-Info "WSL: comprobando $mnt ..."
-    $check = & wsl -e bash -lc "ls $mnt/Linux/*.iso 2>/dev/null | wc -l"
-    $n = 0
-    [void][int]::TryParse(("$check").Trim(), [ref]$n)
-    if ($n -lt 1) {
-        Write-Err "WSL no ve ISOs en $mnt/Linux."
-        Write-Err "Prueba: wsl -e ls $mnt/Linux"
-        Write-Err "Si falla: wsl --shutdown"
-        return 2
-    }
-    Write-Info "WSL: $n ISO(s) en $mnt/Linux"
+    Write-Info "=== Motor WSL (uv en Linux, ISOs en $mnt) ==="
 
-    # Script bash escrito a archivo temporal en %TEMP% (disco Windows del sistema,
-    # no en el USB) y ejecutado via /mnt/c/...
-    $bash = @"
+    # -i login-ish + -t no disponible en wsl.exe antiguo; usar bash -lc desde sesion interactiva
+    # wsl sin -e hereda TTY de la consola de Windows
+    $cmd = @"
 set -e
-export VENTOY_ROOT='$mnt'
+export VENTOY_ROOT=$mnt
 export UV_LINK_MODE=copy
-export PATH="`$HOME/.local/bin:`$PATH"
-
-# 1) uv
+export PATH=`$HOME/.local/bin:`$PATH
 if ! command -v uv >/dev/null 2>&1; then
-  echo '[ventoy-iso-check] Instalando uv en WSL...'
   curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="`$HOME/.local/bin:`$PATH"
+  export PATH=`$HOME/.local/bin:`$PATH
 fi
-
-# 2) Repo en HOME (ext4) — NUNCA .venv en el USB/9p
-REPO="`$HOME/projects/ventoy-iso-check"
-mkdir -p "`$HOME/projects"
-if [ ! -f "`$REPO/pyproject.toml" ]; then
-  echo "[ventoy-iso-check] Clonando $gitUrl -> `$REPO"
-  git clone --depth 1 "$gitUrl" "`$REPO"
+mkdir -p `$HOME/projects
+if [ ! -f `$HOME/projects/ventoy-iso-check/pyproject.toml ]; then
+  git clone --depth 1 $GitUrl `$HOME/projects/ventoy-iso-check
 else
-  echo "[ventoy-iso-check] Repo WSL: `$REPO"
-  # actualizar si es un clon limpio (no fallar si hay cambios locales)
-  git -C "`$REPO" pull --ff-only 2>/dev/null || true
+  git -C `$HOME/projects/ventoy-iso-check pull --ff-only 2>/dev/null || true
 fi
-
-cd "`$REPO"
-# venv siempre bajo el proyecto en HOME (no en /mnt/e)
-echo "[ventoy-iso-check] VENTOY_ROOT=`$VENTOY_ROOT"
-echo "[ventoy-iso-check] uv sync en `$REPO (filesystem Linux)"
+cd `$HOME/projects/ventoy-iso-check
 uv sync
-exec uv run ventoy-iso-check $argsLine
+# Si no hay TTY, no uses menu
+if [ -t 0 ] && [ -t 1 ]; then
+  exec uv run ventoy-iso-check $argsJoined
+else
+  # fallback sin menu interactivo
+  if echo '$argsJoined' | grep -q menu; then
+    exec uv run ventoy-iso-check scan --sort age
+  else
+    exec uv run ventoy-iso-check $argsJoined
+  fi
+fi
 "@
 
-    # Expand only what we need: $mnt $gitUrl $argsLine already in string via @"
-    # Escape: we used `$ for bash vars. Good.
-    # But @" also expanded $argsLine - good. $gitUrl - good. $mnt - good.
+    $cmd = $cmd -replace "`r`n", "`n"
+    # wsl invocado sin -e bash file: pasar por stdin no da TTY.
+    # Mejor: wsl -e bash -lc "..." desde consola Windows (a menudo isatty true)
+    & wsl --cd ~ -e bash -lc $cmd
+    return $LASTEXITCODE
+}
 
-    $bashLf = ($bash -replace "`r`n", "`n") -replace "`r", "`n"
-    $tmpWin = Join-Path $env:TEMP "vic-run-$PID.sh"
-    $utf8 = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($tmpWin, $bashLf, $utf8)
-
-    # Windows path -> /mnt/c/Users/...
-    $tmpFull = (Resolve-Path $tmpWin).Path
-    if ($tmpFull -match '^([A-Za-z]):\\') {
-        $dl = $Matches[1].ToLower()
-        $rest = $tmpFull.Substring(2) -replace '\\', '/'
-        $tmpWsl = "/mnt/$dl/$rest"
-    } else {
-        Write-Err "No se pudo convertir ruta temp a WSL: $tmpFull"
+# =====================================================================
+# Docker (ultimo recurso; USB extraible suele fallar)
+# =====================================================================
+function Invoke-DockerEngine {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Err "Docker no esta en PATH."
+        return 3
+    }
+    docker info 1>$null 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "Docker Desktop no esta en marcha."
+        return 3
+    }
+    if (-not $UsbRepo) {
+        Write-Err "No hay repo USB para docker build."
         return 2
     }
 
-    Write-Info "WSL+uv: repo=~/projects/ventoy-iso-check  VENTOY_ROOT=$mnt"
-    Write-Info "script: $tmpWsl"
-    & wsl -e bash "$tmpWsl"
-    $code = $LASTEXITCODE
-    Remove-Item -Force $tmpWin -ErrorAction SilentlyContinue
-    return $code
-}
-
-# =====================================================================
-# Docker (suele fallar con USB extraible)
-# =====================================================================
-function Ensure-DockerImage {
-    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { return $false }
-    docker info 1>$null 2>$null
-    if ($LASTEXITCODE -ne 0) { return $false }
-
     docker image inspect $Image 1>$null 2>$null
-    $exists = ($LASTEXITCODE -eq 0)
-    $need = $Rebuild -or (-not $exists)
-
-    if ($exists -and -not $need) {
-        $probeOut = & docker run --rm $Image -V 2>&1 | Out-String
-        if ($LASTEXITCODE -ne 0 -or $probeOut -match 'sh\\r') { $need = $true }
-        else { Write-Info "Imagen OK: $($probeOut.Trim())" }
-    }
-
+    $need = $Rebuild -or ($LASTEXITCODE -ne 0)
     if ($need) {
         Write-Info "docker build..."
-        Push-Location $RepoRoot
+        Push-Location $UsbRepo
         try {
-            docker build --no-cache -t $Image .
-            if ($LASTEXITCODE -ne 0) { return $false }
+            docker build -t $Image .
+            if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
         } finally { Pop-Location }
-        $v = & docker run --rm $Image -V 2>&1 | Out-String
-        if ($LASTEXITCODE -ne 0) { return $false }
-        Write-Info "Build OK: $($v.Trim())"
-    }
-    return $true
-}
-
-function Test-DockerMount([string[]]$VolArgs) {
-    $cmd = 'echo ISOS:$(find /ventoy -maxdepth 3 -type f \( -iname "*.iso" -o -iname "*.img" \) 2>/dev/null | wc -l)'
-    $out = & docker run --rm --entrypoint /bin/sh @VolArgs $Image -c $cmd 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) { return @{ Ok = $false; Isos = 0 } }
-    $isos = 0
-    if ($out -match 'ISOS:(\d+)') { $isos = [int]$Matches[1] }
-    return @{ Ok = ($isos -ge 1); Isos = $isos }
-}
-
-function Invoke-DockerEngine {
-    if (-not (Ensure-DockerImage)) {
-        Write-Err "Docker no disponible o build fallo."
-        return 3
     }
 
     $letter = $DriveLetter
     $low = $DriveLetter.ToLower()
-    $candidates = @(
-        @{ Label = "mount E:/"; Args = @("--mount", "type=bind,source=${letter}:/,target=/ventoy") },
-        @{ Label = "-v E:/:/";  Args = @("-v", "${letter}:/:/ventoy") },
-        @{ Label = "-v //e/";   Args = @("-v", "//${low}/:/ventoy") }
-    )
-
-    $chosen = $null
-    foreach ($c in $candidates) {
-        Write-Info "Probando Docker: $($c.Label)"
-        $r = Test-DockerMount $c.Args
-        if ($r.Ok) {
-            Write-Info "Montaje OK ($($r.Isos) ISO(s))"
-            $chosen = $c
-            break
+    foreach ($spec in @(
+        @("--mount", "type=bind,source=${letter}:/,target=/ventoy"),
+        @("-v", "${letter}:/:/ventoy"),
+        @("-v", "//${low}/:/ventoy")
+    )) {
+        $probe = & docker run --rm --entrypoint /bin/sh @spec $Image -c 'find /ventoy -maxdepth 3 -name "*.iso" 2>/dev/null | wc -l' 2>&1
+        $n = 0
+        [void][int]::TryParse(("$probe").Trim(), [ref]$n)
+        if ($n -ge 1) {
+            Write-Info "Docker montaje OK ($n ISOs)"
+            & docker run --rm -it -e VENTOY_ROOT=/ventoy @spec $Image @AppArgs
+            return $LASTEXITCODE
         }
-        Write-Warn "  vacio (isos=$($r.Isos))"
     }
-
-    if (-not $chosen) {
-        Write-Err "Docker no ve ISOs del USB (tipico con unidades extraibles)."
-        return 4
-    }
-
-    $dockerArgs = @("run", "--rm", "-it", "-e", "VENTOY_ROOT=/ventoy") + $chosen.Args + @($Image) + $containerArgs
-    & docker @dockerArgs
-    return $LASTEXITCODE
+    Write-Err "Docker no ve el USB. Usa -Engine Native (recomendado)."
+    return 4
 }
 
 # =====================================================================
 $code = 1
 switch ($Engine) {
-    "Docker" {
-        $code = Invoke-DockerEngine
-        if ($code -eq 4) {
-            Write-Warn "Fallback WSL+uv..."
-            $code = Invoke-WslEngine
-        }
-    }
-    "Wsl" { $code = Invoke-WslEngine }
-    default {
-        $dockerReady = $false
-        if (Get-Command docker -ErrorAction SilentlyContinue) {
-            docker info 1>$null 2>$null
-            $dockerReady = ($LASTEXITCODE -eq 0)
-        }
-        # Con USB, preferir WSL primero (Docker casi nunca monta extraibles)
-        if ($hostIso -gt 0) {
-            Write-Info "USB detectado: priorizando WSL+uv (Docker suele fallar con extraibles)"
-            $code = Invoke-WslEngine
-            if ($code -ne 0 -and $dockerReady) {
-                Write-Warn "WSL fallo; intentando Docker..."
-                $code = Invoke-DockerEngine
-            }
-        } elseif ($dockerReady) {
-            $code = Invoke-DockerEngine
-            if ($code -eq 4) { $code = Invoke-WslEngine }
-        } else {
+    "Native" { $code = Invoke-NativeEngine }
+    "Wsl"    { $code = Invoke-WslEngine }
+    "Docker" { $code = Invoke-DockerEngine }
+    "Auto" {
+        $code = Invoke-NativeEngine
+        if ($code -ne 0) {
+            Write-Warn "Native fallo; intentando WSL..."
             $code = Invoke-WslEngine
         }
     }
@@ -301,12 +331,12 @@ switch ($Engine) {
 
 if ($code -ne 0) {
     Write-Warn "exit=$code"
-    $L = $DriveLetter.ToLower()
-    Write-Warn "Manual:"
-    Write-Warn "  wsl"
-    Write-Warn "  export VENTOY_ROOT=/mnt/$L"
-    Write-Warn "  cd ~/projects/ventoy-iso-check   # o: git clone https://github.com/Daom-Projects/ventoy-iso-check.git ~/projects/ventoy-iso-check"
-    Write-Warn "  uv sync && uv run ventoy-iso-check menu"
+    Write-Warn "Prueba manual (PowerShell):"
+    Write-Warn "  winget install astral-sh.uv"
+    Write-Warn "  `$env:VENTOY_ROOT = '$VentoyRoot'"
+    Write-Warn "  cd `$env:USERPROFILE\projects\ventoy-iso-check"
+    Write-Warn "  uv sync"
+    Write-Warn "  uv run ventoy-iso-check menu"
 }
 
 exit $code

@@ -18,14 +18,43 @@ E:\   (o /mnt/e)
         └── …
 ```
 
-## Requisito: Docker
+## Recomendado en Windows: uv nativo (sin Docker)
 
-Los lanzadores **comprueban Docker** y **no ejecutan** la herramienta si:
+El lanzador **por defecto** usa **Python/uv en Windows** y lee el USB
+directamente (`E:\`, `F:\`, …). No necesita Docker ni WSL.
 
-- `docker` no está en el PATH, o
-- el daemon no responde (Docker Desktop apagado).
+```powershell
+cd E:\Scripts
+.\Run-VentoyIsoCheck.ps1
+# o:
+.\ventoy-iso-check\usb-scripts\Run-VentoyIsoCheck.ps1 scan
+```
 
-Código de salida `3` = Docker no disponible.
+Requisitos:
+
+1. [uv](https://docs.astral.sh/uv/) (el script intenta instalarlo; o `winget install astral-sh.uv`)
+2. Opcional: Git for Windows (si no, copia el repo a `%USERPROFILE%\projects\ventoy-iso-check`)
+
+El código y `.venv` se crean en **`%USERPROFILE%\projects\ventoy-iso-check`**
+(disco C:), no en el USB (evita errores de permisos).
+
+```powershell
+$env:VENTOY_ROOT = "E:\"
+cd $env:USERPROFILE\projects\ventoy-iso-check
+uv sync
+uv run ventoy-iso-check menu
+uv run ventoy-iso-check scan
+uv run ventoy-iso-check check --only-outdated --urls
+```
+
+Motores:
+
+| `-Engine` | Uso |
+|-----------|-----|
+| **Native** (default) | uv en Windows + `E:\` |
+| Wsl | uv en WSL + `/mnt/e` |
+| Docker | imagen local (falla a menudo con USB extraíble) |
+| Auto | Native, luego WSL |
 
 ## Windows (PowerShell)
 
