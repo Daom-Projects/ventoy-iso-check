@@ -63,14 +63,33 @@ Línea Windows (CRLF) en el entrypoint. Reconstruir:
 .\Run-VentoyIsoCheck.ps1 -Rebuild
 ```
 
-### Si sale `total=0` ISOs
+### Si sale `total=0` ISOs (montaje Docker vacío)
 
-Docker Desktop no montó la unidad:
+Es el fallo más habitual con **USB + Docker Desktop (WSL2)**: el menú arranca pero `/ventoy` dentro del contenedor está vacío.
 
-1. Docker Desktop → **Settings → Resources → File sharing** → marca **esa** letra (`E:`, `F:`, …).
+El lanzador en modo **Auto**:
+
+1. Intenta Docker con varios tipos de montaje.
+2. Si no ve ISOs → **fallback a WSL + uv** (`VENTOY_ROOT=/mnt/e`), que suele ver el USB bien.
+
+Forzar un motor:
+
+```powershell
+.\Run-VentoyIsoCheck.ps1 -Engine Wsl      # recomendado si Docker no monta el USB
+.\Run-VentoyIsoCheck.ps1 -Engine Docker  # solo Docker
+```
+
+Requisitos del fallback WSL:
+
+- WSL instalado y la unidad visible: `wsl -e ls /mnt/e/Linux`
+- `uv` en WSL (el script intenta instalarlo si falta)
+- Repo en `/mnt/e/Scripts/ventoy-iso-check` o `~/projects/ventoy-iso-check`
+
+File sharing de Docker (solo si quieres Docker puro):
+
+1. Docker Desktop → **Settings → Resources → File sharing** → marca **E:** (u otra).
 2. Apply & Restart.
-3. `.\Run-VentoyIsoCheck.ps1 -Rebuild`
-4. Prueba: `docker run --rm -v E:\:/ventoy ventoy-iso-check:local scan`
+3. `.\Run-VentoyIsoCheck.ps1 -Engine Docker`
 
 Si PowerShell bloquea scripts:
 
