@@ -3,6 +3,12 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [1.1.3] — 2026-07-25
+
+### Corregido
+
+- Detectar raiz Ventoy al ejecutar desde `E:\\Scripts\\ventoy-iso-check` (sube hasta `E:\\` con Linux/Bootloaders).
+
 ## [1.1.2] — 2026-07-25
 
 ### Corregido

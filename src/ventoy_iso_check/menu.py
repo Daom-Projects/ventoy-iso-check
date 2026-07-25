@@ -105,8 +105,14 @@ def _banner(root: Path) -> None:
         ("ventoy-iso-check", "bold cyan"),
         (f"  v{__version__}", "dim"),
     )
+    tip = ""
+    if (root / "catalog.yaml").is_file() and (root / "pyproject.toml").is_file():
+        tip = (
+            "\n[yellow]AVISO: parece el repo del tool, no la raiz del USB. "
+            "Opcion 13 o: $env:VENTOY_ROOT='E:\\'[/yellow]"
+        )
     body = (
-        f"[bold]Raiz Ventoy:[/bold] {root}\n"
+        f"[bold]Raiz Ventoy:[/bold] {root}{tip}\n"
         "[dim]CLI por flags sigue disponible "
         "(scan, check, export, ...). Este menu cubre lo mismo de forma guiada.[/dim]"
     )
