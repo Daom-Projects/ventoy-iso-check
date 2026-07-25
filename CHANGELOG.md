@@ -3,6 +3,12 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [1.1.2] — 2026-07-25
+
+### Corregido
+
+- Windows cp1252: UTF-8 console + textos ASCII-safe en menú/tablas (UnicodeEncodeError con `→`).
+
 ## [1.1.1] — 2026-07-25
 
 ### Corregido

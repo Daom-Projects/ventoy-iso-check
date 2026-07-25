@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from ventoy_iso_check.console_util import make_console
 from ventoy_iso_check.models import IsoItem, Status
 
-console = Console()
+console = make_console()
 
 STATUS_STYLE = {
     Status.OK: "green",
@@ -103,9 +103,9 @@ def print_table(
         status_text = Text(it.status.value, style=style)
         row: list = [
             it.relpath,
-            it.label or "—",
-            it.local_version or "—",
-            it.latest_version or "—",
+            it.label or "-",
+            it.local_version or "-",
+            it.latest_version or "-",
             status_text,
         ]
         if show_dates:
@@ -134,7 +134,7 @@ def print_table(
         row.append(format_size(it.size))
         row.append(it.managed_by)
         if show_urls:
-            link = it.download_url or it.page or it.note or "—"
+            link = it.download_url or it.page or it.note or "-"
             if len(link) > 64:
                 link = link[:61] + "..."
             row.append(link)
@@ -148,7 +148,7 @@ def print_table(
     summary = "  ".join(f"{k}={v}" for k, v in sorted(counts.items()))
     extra = ""
     if show_dates and stale_days is not None:
-        extra = f"  stale(≥{stale_days}d)={stale_count}"
+        extra = f"  stale(>={stale_days}d)={stale_count}"
     extra += f"  meta={meta_count}"
     if bad_sha:
         extra += f"  bad_sha={bad_sha}"
@@ -156,7 +156,7 @@ def print_table(
     if show_dates:
         console.print(
             "[dim]File date: * = sidecar .meta.json (downloaded_at); "
-            "si no, mtime/birthtime del FS. Meta: ✓ = sidecar presente.[/dim]"
+            "si no, mtime/birthtime del FS. Meta: OK = sidecar presente.[/dim]"
         )
 
 

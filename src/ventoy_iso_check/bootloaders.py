@@ -247,8 +247,8 @@ def format_bootloaders_console(tools: list[ToolStatus]) -> str:
     lines = ["=== Bootloaders / herramientas ==="]
     for t in tools:
         lines.append(f"  [{t.status:9}] {t.label}")
-        lines.append(f"             local:  {t.local_version or '—'}  ({t.local_path or '—'})")
-        lines.append(f"             latest: {t.latest_version or '—'}")
+        lines.append(f"             local:  {t.local_version or '-'}  ({t.local_path or '-'})")
+        lines.append(f"             latest: {t.latest_version or '-'}")
         if t.latest_url:
             lines.append(f"             url:    {t.latest_url}")
         if t.note:

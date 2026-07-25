@@ -5,12 +5,12 @@ from datetime import UTC
 from pathlib import Path
 
 import typer
-from rich.console import Console
 
 from ventoy_iso_check import __version__
 from ventoy_iso_check.bootloaders import check_bootloaders, format_bootloaders_console
 from ventoy_iso_check.cache import ResolveCache, default_cache_file
 from ventoy_iso_check.checker import DEFAULT_RESOLVE_WORKERS, run_check
+from ventoy_iso_check.console_util import configure_stdio_utf8, make_console
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
 from ventoy_iso_check.export import write_csv, write_html
 from ventoy_iso_check.filters import filter_items
@@ -28,6 +28,9 @@ from ventoy_iso_check.ventoy_info import (
     format_ventoy_html,
 )
 
+# UTF-8 en Windows antes de cualquier print Rich
+configure_stdio_utf8()
+
 app = typer.Typer(
     name="ventoy-iso-check",
     help=(
@@ -41,7 +44,7 @@ app = typer.Typer(
     invoke_without_command=True,
     rich_markup_mode="rich",
 )
-console = Console()
+console = make_console()
 
 
 def _setup_log(level: str) -> None:

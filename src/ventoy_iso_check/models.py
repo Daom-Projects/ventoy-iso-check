@@ -97,12 +97,12 @@ class IsoItem:
         """Prefer meta downloaded_at, then birthtime, then mtime."""
         dt = self.meta_downloaded_at or self.birthtime or self.mtime
         if not dt:
-            return "—"
+            return "-"
         return dt.astimezone().strftime("%Y-%m-%d")
 
     def age_label(self) -> str:
         if self.age_days is None:
-            return "—"
+            return "-"
         d = self.age_days
         if d < 1:
             hours = max(1, int(d * 24))
@@ -114,15 +114,16 @@ class IsoItem:
         return f"{d / 365:.1f}y"
 
     def meta_label(self) -> str:
+        # ASCII-safe labels (Windows cp1252 consoles)
         if not self.has_meta:
-            return "—"
+            return "-"
         if self.checksum_ok is True:
-            return "✓ sha"
+            return "OK sha"
         if self.checksum_ok is False:
-            return "✗ sha"
+            return "BAD sha"
         if self.meta_sha256:
-            return "✓ hash"
-        return "✓"
+            return "OK hash"
+        return "OK"
 
 
 def utc_now() -> datetime:

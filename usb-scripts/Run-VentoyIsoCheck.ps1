@@ -192,7 +192,16 @@ function Invoke-NativeEngine {
     # Forzar menú/prompts aunque uv/PowerShell no reporten isatty()
     $env:VENTOY_ISO_CHECK_INTERACTIVE = "1"
     $env:PYTHONUNBUFFERED = "1"
+    $env:PYTHONUTF8 = "1"
+    $env:PYTHONIOENCODING = "utf-8"
     $env:UV_LINK_MODE = "copy"
+    # Consola UTF-8 (evita UnicodeEncodeError cp1252 con flechas/acentos)
+    try {
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        [Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+        $OutputEncoding = [Console]::OutputEncoding
+        chcp 65001 | Out-Null
+    } catch { }
 
     Push-Location $WinRepo
     try {

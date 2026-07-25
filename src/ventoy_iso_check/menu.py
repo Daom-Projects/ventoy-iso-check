@@ -10,7 +10,6 @@ import os
 import sys
 from pathlib import Path
 
-from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -20,6 +19,7 @@ from ventoy_iso_check import __version__
 from ventoy_iso_check.bootloaders import check_bootloaders, format_bootloaders_console
 from ventoy_iso_check.cache import ResolveCache, default_cache_file
 from ventoy_iso_check.checker import run_check
+from ventoy_iso_check.console_util import make_console
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
 from ventoy_iso_check.export import write_csv, write_html
 from ventoy_iso_check.filters import filter_items
@@ -35,7 +35,7 @@ from ventoy_iso_check.ventoy_info import (
     format_ventoy_console,
 )
 
-console = Console()
+console = make_console()
 
 
 def _is_interactive() -> bool:
@@ -106,9 +106,9 @@ def _banner(root: Path) -> None:
         (f"  v{__version__}", "dim"),
     )
     body = (
-        f"[bold]Raíz Ventoy:[/bold] {root}\n"
+        f"[bold]Raiz Ventoy:[/bold] {root}\n"
         "[dim]CLI por flags sigue disponible "
-        "(scan, check, export, …). Este menú cubre lo mismo de forma guiada.[/dim]"
+        "(scan, check, export, ...). Este menu cubre lo mismo de forma guiada.[/dim]"
     )
     console.print(Panel(body, title=title, border_style="cyan", expand=False))
 
@@ -117,6 +117,7 @@ def _menu_table() -> None:
     t = Table(show_header=False, box=None, padding=(0, 2))
     t.add_column("key", style="bold yellow", width=4)
     t.add_column("action")
+    # Textos ASCII-safe: consolas Windows cp1252 rompen con -> … —
     rows = [
         ("1", "Escanear ISOs (solo local, sin red)"),
         ("2", "Comprobar versiones (red + cache)"),
@@ -125,13 +126,13 @@ def _menu_table() -> None:
         ("5", "Exportar informe (CSV / HTML / JSON)"),
         ("6", "Estado del bootloader Ventoy"),
         ("7", "Bootloaders/ (Ventoy + Rufus + Etcher)"),
-        ("8", "Descargar paquete Ventoy latest → Bootloaders/"),
-        ("9", "Sugerir entradas de catálogo (UNSUPPORTED)"),
+        ("8", "Descargar paquete Ventoy latest a Bootloaders/"),
+        ("9", "Sugerir entradas de catalogo (UNSUPPORTED)"),
         ("10", "Descargar/actualizar ISOs con sisou"),
         ("11", "Meta: sellar sidecars .meta.json"),
         ("12", "Meta: verificar checksums"),
-        ("13", "Cambiar raíz del volumen Ventoy"),
-        ("14", "Ayuda rápida (comandos CLI)"),
+        ("13", "Cambiar raiz del volumen Ventoy"),
+        ("14", "Ayuda rapida (comandos CLI)"),
         ("0", "Salir"),
     ]
     for k, a in rows:
@@ -209,7 +210,7 @@ def _do_links(root: Path) -> None:
     out = Path(_ask("Archivo de salida", default=str(default))).expanduser()
     items = run_check(root, online=True, cache=ResolveCache(path=default_cache_file()))
     write_links_markdown(items, out)
-    console.print(f"[green]Enlaces →[/green] {out.resolve()}")
+    console.print(f"[green]Enlaces ->[/green] {out.resolve()}")
 
 
 def _do_export(root: Path) -> None:
@@ -236,7 +237,7 @@ def _do_export(root: Path) -> None:
         write_html(items, out, ventoy_section=format_ventoy_console(st).replace("\n", "<br/>"))
     else:
         write_json(items, out, extra={"ventoy": st.to_dict()})
-    console.print(f"[green]Exportado[/green] {len(items)} → {out.resolve()}")
+    console.print(f"[green]Exportado[/green] {len(items)} -> {out.resolve()}")
     console.print(format_ventoy_console(st))
 
 
@@ -304,7 +305,7 @@ def _do_suggest(root: Path) -> None:
             _ask("Ruta", default=str(Path.home() / "catalog-suggestions.yaml"))
         ).expanduser()
         out.write_text(text, encoding="utf-8")
-        console.print(f"[green]→[/green] {out.resolve()}")
+        console.print(f"[green]->[/green] {out.resolve()}")
 
 
 def _do_download(root: Path) -> None:
@@ -339,7 +340,7 @@ def _do_meta_seal(root: Path) -> None:
     for p in written[:15]:
         console.print(f"  {p}")
     if len(written) > 15:
-        console.print(f"  … y {len(written) - 15} más")
+        console.print(f"  ... y {len(written) - 15} mas")
 
 
 def _do_meta_verify(root: Path) -> None:
@@ -391,7 +392,7 @@ def run_menu(root: Path | None = None) -> int:
             "  • PowerShell normal: [bold]uv run ventoy-iso-check scan[/bold]\n"
             "  • Forzar menú: [bold]$env:VENTOY_ISO_CHECK_INTERACTIVE=1[/bold] "
             "luego [bold]uv run ventoy-iso-check menu[/bold]\n"
-            "  • O usa flags: check, export, bootloaders, …"
+            "  * O usa flags: check, export, bootloaders, ..."
         )
         return 2
 

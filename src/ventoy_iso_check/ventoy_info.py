@@ -171,21 +171,21 @@ def check_ventoy(root: Path, *, online: bool = True) -> VentoyStatus:
 
     if _ver_tuple(local) < _ver_tuple(latest):
         st.status = "OUTDATED"
-        st.note = f"Actualizar Ventoy {local} → {latest} (bootloader, no las ISOs)"
+        st.note = f"Actualizar Ventoy {local} -> {latest} (bootloader, no las ISOs)"
     elif _ver_tuple(local) == _ver_tuple(latest):
         st.status = "OK"
-        st.note = "Bootloader Ventoy al día"
+        st.note = "Bootloader Ventoy al dia"
     else:
         st.status = "OK"
-        st.note = f"Local {local} ≥ upstream {latest}"
+        st.note = f"Local {local} >= upstream {latest}"
     return st
 
 
 def format_ventoy_console(st: VentoyStatus) -> str:
     lines = [
         "=== Ventoy bootloader ===",
-        f"  local:  {st.local_version or '—'}  ({st.local_path or 'no path'})",
-        f"  latest: {st.latest_version or '—'}",
+        f"  local:  {st.local_version or '-'}  ({st.local_path or 'no path'})",
+        f"  latest: {st.latest_version or '-'}",
         f"  status: {st.status}",
     ]
     if st.latest_url:
