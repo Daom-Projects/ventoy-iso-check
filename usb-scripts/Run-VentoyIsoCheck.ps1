@@ -117,11 +117,10 @@ $volCandidates = @(
 )
 
 function Test-VentoyMount([string]$VolSpec) {
-    # Cuenta entradas en la raíz montada (Linux, Bootloaders, etc.)
-    $out = & docker run --rm --entrypoint ls $Image -1 $VolSpec.Split(':')[-1] 2>$null
-    # no: entrypoint override path is wrong. Use:
-    $null = $out
-    $probe = & docker run --rm --entrypoint /bin/sh -v $VolSpec $Image -c "ls -1 /ventoy 2>/dev/null | wc -l" 2>$null
+    # ¿Se ven carpetas del USB dentro de /ventoy?
+    $probe = & docker run --rm --entrypoint /bin/sh `
+        -v $VolSpec $Image `
+        -c "ls -1 /ventoy 2>/dev/null | wc -l" 2>$null
     if ($LASTEXITCODE -ne 0) { return $false }
     $n = 0
     [void][int]::TryParse(("${probe}".Trim()), [ref]$n)
