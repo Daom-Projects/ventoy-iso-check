@@ -3,6 +3,22 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [1.1.0] — 2026-07-25
+
+### Añadido
+
+- Comando **`bootloaders`**: inventario de `Bootloaders/` (Ventoy, Rufus, balenaEtcher)
+  vs versiones upstream (GitHub / rufus.ie).
+- Opción de menú para el inventario de herramientas de flasheo.
+- **`usb-scripts/`**: lanzadores portables desde el USB
+  - `Run-VentoyIsoCheck.ps1` (Windows) — **exige Docker**, si no hay no ejecuta.
+  - `run-ventoy-iso-check.sh` (WSL/Linux/macOS) — igual.
+  - README de despliegue en `E:\Scripts\ventoy-iso-check`.
+
+### Cambiado
+
+- Versión 1.0.0 → 1.1.0.
+
 ## [1.0.0] — 2026-07-25
 
 ### Añadido

@@ -114,7 +114,8 @@ docs/
 
 ## Versión actual
 
-- Paquete: **1.0.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
-- Plan de fases: **0–9 completado**; hito 1.0.0 (menú Rich, ruff, más distros, ventoy --fetch)
+- Paquete: **1.1.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Plan de fases: **0–9 completado**; hitos 1.0.0 (menú) y 1.1.0 (bootloaders + USB scripts)
 - CI: `.github/workflows/ci.yml` (ruff + pytest + docker build, sin discos reales)
 - Stack UX: **Typer (Click) + Rich** — flags y menú interactivo
+- USB: clonar en `E:\Scripts\ventoy-iso-check`; lanzadores en `usb-scripts/` (Docker obligatorio)

@@ -16,6 +16,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ventoy_iso_check import __version__
+from ventoy_iso_check.bootloaders import check_bootloaders, format_bootloaders_console
 from ventoy_iso_check.cache import ResolveCache, default_cache_file
 from ventoy_iso_check.checker import run_check
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
@@ -60,13 +61,14 @@ def _menu_table() -> None:
         ("4", "Generar enlaces Markdown"),
         ("5", "Exportar informe (CSV / HTML / JSON)"),
         ("6", "Estado del bootloader Ventoy"),
-        ("7", "Descargar paquete Ventoy latest → Bootloaders/"),
-        ("8", "Sugerir entradas de catálogo (UNSUPPORTED)"),
-        ("9", "Descargar/actualizar ISOs con sisou"),
-        ("10", "Meta: sellar sidecars .meta.json"),
-        ("11", "Meta: verificar checksums"),
-        ("12", "Cambiar raíz del volumen Ventoy"),
-        ("13", "Ayuda rápida (comandos CLI)"),
+        ("7", "Bootloaders/ (Ventoy + Rufus + Etcher)"),
+        ("8", "Descargar paquete Ventoy latest → Bootloaders/"),
+        ("9", "Sugerir entradas de catálogo (UNSUPPORTED)"),
+        ("10", "Descargar/actualizar ISOs con sisou"),
+        ("11", "Meta: sellar sidecars .meta.json"),
+        ("12", "Meta: verificar checksums"),
+        ("13", "Cambiar raíz del volumen Ventoy"),
+        ("14", "Ayuda rápida (comandos CLI)"),
         ("0", "Salir"),
     ]
     for k, a in rows:
@@ -182,11 +184,18 @@ def _do_ventoy_status(root: Path) -> None:
     console.print(format_ventoy_console(st))
     if st.status == "OUTDATED":
         console.print(
-            "\n[yellow]Tip:[/yellow] opción [bold]7[/bold] descarga el paquete "
+            "\n[yellow]Tip:[/yellow] opción [bold]8[/bold] descarga el paquete "
             "oficial a Bootloaders/. Luego actualiza el bootloader con "
             "[bold]Ventoy2Disk[/bold] (Windows) o el script Linux del paquete "
             "(no se modifica el MBR/ESP desde aquí)."
         )
+
+
+def _do_bootloaders(root: Path) -> None:
+    if not _ensure_root(root):
+        return
+    tools = check_bootloaders(root, online=True)
+    console.print(format_bootloaders_console(tools))
 
 
 def _do_ventoy_fetch(root: Path) -> None:
@@ -300,6 +309,7 @@ def _do_help() -> None:
             "  ventoy-iso-check export [ROOT] -o report.html\n"
             "  ventoy-iso-check ventoy [ROOT]\n"
             "  ventoy-iso-check ventoy [ROOT] --fetch --platform both\n"
+            "  ventoy-iso-check bootloaders [ROOT]\n"
             "  ventoy-iso-check suggest [ROOT]\n"
             "  ventoy-iso-check download [ROOT] --dry-run\n"
             "  ventoy-iso-check meta seal|verify [ROOT]\n"
@@ -354,18 +364,20 @@ def run_menu(root: Path | None = None) -> int:
         elif choice == "6":
             _do_ventoy_status(current)
         elif choice == "7":
-            _do_ventoy_fetch(current)
+            _do_bootloaders(current)
         elif choice == "8":
-            _do_suggest(current)
+            _do_ventoy_fetch(current)
         elif choice == "9":
-            _do_download(current)
+            _do_suggest(current)
         elif choice == "10":
-            _do_meta_seal(current)
+            _do_download(current)
         elif choice == "11":
-            _do_meta_verify(current)
+            _do_meta_seal(current)
         elif choice == "12":
-            current = _ask_root(current)
+            _do_meta_verify(current)
         elif choice == "13":
+            current = _ask_root(current)
+        elif choice == "14":
             _do_help()
         else:
             console.print(f"[yellow]Opción no válida:[/yellow] {choice}")

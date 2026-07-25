@@ -103,7 +103,32 @@ Queda en `E:\Bootloaders\`:
 ```powershell
 wsl -e bash -lc "cd ~/projects/ventoy-iso-check && uv run ventoy-iso-check ventoy /mnt/e"
 # status: OK
+
+# También Rufus / balenaEtcher en Bootloaders/
+wsl -e bash -lc "cd ~/projects/ventoy-iso-check && uv run ventoy-iso-check bootloaders /mnt/e"
 ```
+
+---
+
+## Ejecutar ventoy-iso-check desde el propio USB
+
+Layout:
+
+```text
+E:\Scripts\ventoy-iso-check\     ← clon git
+E:\Scripts\ventoy-iso-check\usb-scripts\Run-VentoyIsoCheck.ps1
+```
+
+```powershell
+cd E:\Scripts\ventoy-iso-check\usb-scripts
+.\Run-VentoyIsoCheck.ps1                  # scan por defecto
+.\Run-VentoyIsoCheck.ps1 check --urls
+.\Run-VentoyIsoCheck.ps1 bootloaders
+```
+
+**Requiere Docker Desktop en marcha.** Si Docker no está, el script sale con código 3 y no hace nada.
+
+Detalle: [usb-scripts/README.md](../usb-scripts/README.md).
 
 ---
 

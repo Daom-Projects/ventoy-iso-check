@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 
 from ventoy_iso_check import __version__
+from ventoy_iso_check.bootloaders import check_bootloaders, format_bootloaders_console
 from ventoy_iso_check.cache import ResolveCache, default_cache_file
 from ventoy_iso_check.checker import DEFAULT_RESOLVE_WORKERS, run_check
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
@@ -634,6 +635,39 @@ def ventoy_cmd(
         )
         raise typer.Exit(1)
     if st.status in ("ERROR", "NOT_FOUND"):
+        raise typer.Exit(2)
+
+
+@app.command("bootloaders")
+def bootloaders_cmd(
+    root: Path | None = typer.Argument(
+        None,
+        help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
+    ),
+    offline: bool = typer.Option(False, "--offline"),
+    json_out: Path | None = typer.Option(None, "--json"),
+    log_level: str = typer.Option("WARNING", "--log-level", "-l"),
+) -> None:
+    """Inventario de Bootloaders/: Ventoy, Rufus, balenaEtcher vs upstream."""
+    _setup_log(log_level)
+    ventoy = (root or _root_arg()).resolve()
+    if not ventoy.is_dir():
+        console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
+        raise typer.Exit(2)
+    tools = check_bootloaders(ventoy, online=not offline)
+    console.print(format_bootloaders_console(tools))
+    if json_out:
+        import json
+
+        json_out.write_text(
+            json.dumps([t.to_dict() for t in tools], indent=2, ensure_ascii=False)
+            + "\n",
+            encoding="utf-8",
+        )
+        console.print(f"JSON → {json_out.resolve()}")
+    if any(t.status == "OUTDATED" for t in tools):
+        raise typer.Exit(1)
+    if any(t.status == "ERROR" for t in tools):
         raise typer.Exit(2)
 
 

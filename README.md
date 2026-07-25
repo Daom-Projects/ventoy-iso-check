@@ -4,7 +4,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
 [![CI](https://github.com/Daom-Projects/ventoy-iso-check/actions/workflows/ci.yml/badge.svg)](https://github.com/Daom-Projects/ventoy-iso-check/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](./CHANGELOG.md)
 
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
@@ -36,7 +36,7 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v1.0.0)
+## Características (v1.1.0)
 
 - **Menú interactivo** (Rich): `ventoy-iso-check` / `menu` / `-m` — y **toda la CLI por flags**.
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
@@ -226,6 +226,7 @@ Stack: **Typer** (sobre **Click**) + **Rich** (tablas, paneles, menú, prompts).
 | `export [ROOT] -o FILE` | opcional | CSV / HTML / JSON del inventario |
 | `ventoy [ROOT]` | Sí* | Versión bootloader local vs GitHub (*offline OK) |
 | `ventoy [ROOT] --fetch` | Sí | Descarga paquete official → `Bootloaders/` |
+| `bootloaders [ROOT]` | Sí* | Ventoy + Rufus + balenaEtcher en `Bootloaders/` |
 
 | Flag | Efecto |
 |------|--------|
@@ -289,7 +290,24 @@ uv run ventoy-iso-check ventoy /mnt/e
 uv run ventoy-iso-check ventoy /mnt/e --fetch --platform both
 # exit 1 si OUTDATED, 2 si no se encuentra / error
 # Tras --fetch: en Windows ejecuta Ventoy2Disk.exe → Update (no formatea ISOs)
+
+# Todas las herramientas en Bootloaders/ (Ventoy, Rufus, Etcher)
+uv run ventoy-iso-check bootloaders /mnt/e
 ```
+
+### Ejecutar desde el USB (Docker)
+
+Clona el repo en `E:\Scripts\ventoy-iso-check` y usa los lanzadores
+([usb-scripts/README.md](./usb-scripts/README.md)):
+
+```powershell
+cd E:\Scripts\ventoy-iso-check\usb-scripts
+.\Run-VentoyIsoCheck.ps1 scan
+.\Run-VentoyIsoCheck.ps1 check --only-outdated --urls
+.\Run-VentoyIsoCheck.ps1 bootloaders
+```
+
+Sin Docker el `.ps1` / `.sh` **no ejecuta** (sale con código 3).
 
 ```bash
 # Solo lo que hay que actualizar (versión)
