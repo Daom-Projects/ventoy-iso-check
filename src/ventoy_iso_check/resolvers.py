@@ -853,8 +853,16 @@ def resolve_zorin(entry: CatalogEntry, local_version: str | None) -> ResolveResu
     )
 
 
-def resolve_elementary(entry: CatalogEntry, local_version: str | None) -> ResolveResult:
+def resolve_elementary(
+    entry: CatalogEntry,
+    local_version: str | None,
+    *,
+    policy: UpgradePolicy | str = UpgradePolicy.LATEST_LTS,
+    hint_newer: bool = False,
+) -> ResolveResult:
     """elementary OS stable ISOs (filename often includes build date)."""
+    if isinstance(policy, str):
+        policy = UpgradePolicy.parse(policy)
     try:
         with _client() as client:
             # Public download index / blog sometimes lists version; try direct builds path
@@ -879,26 +887,48 @@ def resolve_elementary(entry: CatalogEntry, local_version: str | None) -> Resolv
                         ver = f"{m.group(1)}.{m.group(2)}"
                     versions.append(ver)
                     files.append((ver, m.group(0)))
-            latest = _best_version(versions)
-            if not latest:
-                # Fallback: if local looks like 8.1, report page only
+            absolute = _best_version(versions)
+            if not absolute:
                 return ResolveResult(
                     latest_version=local_version,
                     page=entry.page or "https://elementary.io/",
-                    note="No se listó ISO en builds.elementary.io; verifica en elementary.io",
+                    note="No se listo ISO en builds.elementary.io; verifica en elementary.io",
+                    policy=policy.value,
                 )
+
+            # Serie local: 8.1.20260219 -> 8.1
+            local_series = None
+            if local_version:
+                mloc = re.match(r"^(\d+\.\d+)", local_version)
+                if mloc:
+                    local_series = mloc.group(1)
+            series_best = None
+            if local_series:
+                same = [v for v in versions if v == local_series or v.startswith(local_series + ".")]
+                series_best = _best_version(same) if same else None
+
+            target = pick_target(
+                policy=policy,
+                series_best=series_best,
+                latest_lts=absolute,  # elementary no publica LTS formal; usar latest
+                absolute_latest=absolute,
+            )
+            latest = target or absolute
+            note = None
+            if hint_newer and policy == UpgradePolicy.SAME_SERIES and absolute and latest:
+                if absolute != latest:
+                    note = hint_note(policy, series_best=latest, newer=absolute)
+
             fname = None
             for ver, name in files:
                 if ver == latest:
                     fname = name
                     break
             if not fname:
-                # reconstruct without date if needed
-                series = latest.split(".")[0] + "." + latest.split(".")[1]
+                parts = latest.split(".")
+                series = f"{parts[0]}.{parts[1]}" if len(parts) >= 2 else latest
                 fname = f"elementaryos-{series}-stable-amd64.iso"
-            # Common CDN pattern
             url = f"https://ams3.dl.elementary.io/download/{fname}"
-            # Prefer builds host if listed
             head = client.head(url)
             if head.status_code >= 400:
                 url = f"https://builds.elementary.io/{fname}"
@@ -906,6 +936,8 @@ def resolve_elementary(entry: CatalogEntry, local_version: str | None) -> Resolv
                 latest_version=latest,
                 download_url=url,
                 page=entry.page or "https://elementary.io/",
+                note=note,
+                policy=policy.value,
             )
     except Exception as e:
         return ResolveResult(error=str(e), page=entry.page)
@@ -1527,15 +1559,36 @@ def resolve(
             note=entry.note or f"Resolver desconocido: {entry.resolver}",
         )
     try:
+        import inspect
+
         from ventoy_iso_check.policy import POLICY_AWARE_RESOLVERS
 
-        if (entry.resolver or "none") in POLICY_AWARE_RESOLVERS:
-            result = fn(
-                entry,
-                local_version,
-                policy=policy,
-                hint_newer=hint_newer,
-            )
+        name = entry.resolver or "none"
+        # Solo pasar policy si el callable lo acepta (evita TypeError en resolvers viejos)
+        try:
+            sig = inspect.signature(fn)
+            accepts_policy = any(
+                p.kind
+                in (
+                    inspect.Parameter.KEYWORD_ONLY,
+                    inspect.Parameter.VAR_KEYWORD,
+                )
+                and (p.name in ("policy", "hint_newer") or p.kind is inspect.Parameter.VAR_KEYWORD)
+                for p in sig.parameters.values()
+            ) or "policy" in sig.parameters
+        except (TypeError, ValueError):
+            accepts_policy = name in POLICY_AWARE_RESOLVERS
+
+        if accepts_policy or name in POLICY_AWARE_RESOLVERS:
+            try:
+                result = fn(
+                    entry,
+                    local_version,
+                    policy=policy,
+                    hint_newer=hint_newer,
+                )
+            except TypeError:
+                result = fn(entry, local_version)
         else:
             result = fn(entry, local_version)
     except Exception as e:

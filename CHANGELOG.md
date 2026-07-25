@@ -3,6 +3,12 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [1.1.4] — 2026-07-25
+
+### Corregido
+
+- `resolve_elementary` acepta `policy` / `hint_newer` (export/check ya no fallan en elementary OS).
+
 ## [1.1.3] — 2026-07-25
 
 ### Corregido
