@@ -3,6 +3,20 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.12.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 9:** CI GitHub Actions (`.github/workflows/ci.yml`).
+  - Job **test**: `uv sync --frozen`, `pytest`, smoke CLI sin disco.
+  - Job **docker**: `docker build` + smoke `-V` / `--help` (sin montar Ventoy).
+- Badge de CI en el README.
+
+### Cambiado
+
+- Versión 0.11.0 → 0.12.0.
+- Plan: Fase 9 **done**; roadmap de fases 0–9 completado.
+
 ## [0.11.0] — 2026-07-25
 
 ### Añadido

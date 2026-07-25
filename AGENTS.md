@@ -97,7 +97,7 @@ docs/
 | Archivo | Uso |
 |---------|-----|
 | [docs/CONTEXT.md](docs/CONTEXT.md) | Contexto de dominio y decisiones |
-| [docs/PHASED_PLAN.md](docs/PHASED_PLAN.md) | **Plan ejecutable por fases** (siguiente: Fase 1) |
+| [docs/PHASED_PLAN.md](docs/PHASED_PLAN.md) | **Plan por fases** (0–9 **done**) |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Flujos y módulos |
 | [docs/README.md](docs/README.md) | Índice de docs internas |
 | [README.md](README.md) | Usuario final |
@@ -107,6 +107,6 @@ docs/
 
 ## Versión actual
 
-- Paquete: **0.11.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
-- Fase del plan activa: **9** (CI)
-- Fases hechas: 0–8
+- Paquete: **0.12.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Plan de fases: **0–9 completado** (última: CI GitHub Actions)
+- CI: `.github/workflows/ci.yml` (pytest + docker build, sin discos reales)

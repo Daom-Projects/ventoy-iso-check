@@ -3,7 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.11.0-green.svg)](./CHANGELOG.md)
+[![CI](https://github.com/Daom-Projects/ventoy-iso-check/actions/workflows/ci.yml/badge.svg)](https://github.com/Daom-Projects/ventoy-iso-check/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.12.0-green.svg)](./CHANGELOG.md)
 
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
@@ -35,7 +36,7 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.11.0)
+## Características (v0.12.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
@@ -417,14 +418,9 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 6 | suggest + más distros | **done** (v0.9.0) |
 | 7 | tests + HTTP paralelo | **done** (v0.10.0) |
 | 8 | export + Ventoy bootloader | **done** (v0.11.0) |
-| 9 | CI GitHub Actions | pending |
+| 9 | CI GitHub Actions | **done** (v0.12.0) |
 
-Prompt para un agente:
-
-```text
-Lee AGENTS.md y docs/PHASED_PLAN.md. Ejecuta la siguiente fase pending.
-No descargues ISOs reales. Verifica con uv. Commit, push y actualiza el plan.
-```
+Roadmap de fases **0–9 completado**. Mejoras posteriores: issues o un nuevo plan.
 
 ---
 

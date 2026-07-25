@@ -1,25 +1,27 @@
 # Documentación interna
 
-Índice de docs del proyecto **ventoy-iso-check** (v0.3.0).
+Índice de docs del proyecto **ventoy-iso-check** (v0.12.0).
 
 | Documento | Audiencia | Contenido |
 |-----------|-----------|-----------|
 | [../README.md](../README.md) | Usuario final | Instalación, CLI, Docker, cobertura |
 | [../CHANGELOG.md](../CHANGELOG.md) | Todos | Historial de versiones |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md) | Humanos + agentes | Cómo contribuir |
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | Humanos + agentes | Cómo contribuir + CI |
 | [../AGENTS.md](../AGENTS.md) | Agentes de código | Reglas operativas |
 | [../CLAUDE.md](../CLAUDE.md) | Claude Code | Puntero a AGENTS |
 | [CONTEXT.md](./CONTEXT.md) | Agentes | Dominio Ventoy / WSL / decisiones |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Agentes | Flujos y módulos |
-| [PHASED_PLAN.md](./PHASED_PLAN.md) | Agentes + humano | **Plan por fases ejecutable** |
+| [PHASED_PLAN.md](./PHASED_PLAN.md) | Agentes + humano | Plan por fases (**0–9 done**) |
 | [WINDOWS.md](./WINDOWS.md) | Usuario Windows | PowerShell / Docker / WSL |
 
 ## Continuar desarrollo
 
+El roadmap de fases 0–9 está **completo**. Para trabajo nuevo:
+
 ```text
 Lee AGENTS.md y docs/PHASED_PLAN.md.
-Ejecuta la siguiente fase pending (actualmente Fase 9 — CI).
-No descargues ISOs reales. Verifica con uv + pytest. Commit, push y actualiza el plan.
+Implementa la mejora pedida (issue / pedido del usuario).
+No descargues ISOs reales. Verifica con uv + pytest. Commit y push.
 ```
 
-Orden de fases: **1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9** (1–8 ya hechas).
+CI en cada push/PR: `.github/workflows/ci.yml` (pytest + docker build, sin discos).

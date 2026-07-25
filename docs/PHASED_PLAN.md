@@ -1,10 +1,10 @@
 ---
 title: Plan de mejoras por fases
 project: ventoy-iso-check
-status: active
+status: complete
 last_updated: 2026-07-25
-current_phase: 9
-version_baseline: "0.11.0"
+current_phase: done
+version_baseline: "0.12.0"
 ---
 
 
@@ -32,7 +32,7 @@ Al completar una fase:
 | 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | **done** | Media |
 | 7 | Calidad: tests de resolvers + async HTTP | **done** | Media |
 | 8 | Export CSV/HTML + check Ventoy bootloader | **done** | Baja |
-| 9 | CI GitHub Actions (lint/test/docker build) | pending | Baja |
+| 9 | CI GitHub Actions (lint/test/docker build) | **done** | Baja |
 
 ---
 
@@ -286,14 +286,21 @@ uv run pytest -q
 
 ## Fase 9 — CI
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.12.0)  
 **Estimación:** S–M  
 **Depende de:** 7 (tests)
 
 ### Trabajo
 
-- [ ] GitHub Actions: `uv sync`, `pytest`, `ruff` (si se añade), `docker build`.
-- [ ] No montar discos reales en CI; solo unit tests.
+- [x] GitHub Actions: `uv sync --frozen`, `pytest`, smoke CLI.
+- [x] Job Docker: `docker build` + smoke `-V`/`--help` (Buildx + cache GHA).
+- [x] No montar discos reales en CI; solo unit tests.
+- [ ] Opcional (futuro): `ruff` cuando se estandarice estilo en el repo.
+
+### Criterios de aceptación
+
+- Workflow en `.github/workflows/ci.yml` en `push`/`pull_request` a `main`.
+- Tests y build Docker verdes sin acceso a `/mnt/e` ni `E:\`.
 
 ---
 
@@ -326,5 +333,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 6 | 2026-07-25 | (v0.9.0) | suggest; Debian/Arch/GParted/Memtest/pearOS |
 | 7 | 2026-07-25 | (v0.10.0) | pytest suite + parallel resolvers --workers |
 | 8 | 2026-07-25 | (v0.11.0) | export csv/html/json + ventoy bootloader check |
+| 9 | 2026-07-25 | (v0.12.0) | GitHub Actions: uv/pytest + docker build (sin discos) |
 
-<!-- Los agentes añaden filas aquí al completar fases -->
+**Roadmap de fases 0–9 completado.** Mejoras posteriores: issues sueltas o un nuevo plan.

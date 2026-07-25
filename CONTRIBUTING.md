@@ -28,7 +28,17 @@ Si tocas Docker:
 
 ```bash
 docker build -t ventoy-iso-check:local .
+docker run --rm ventoy-iso-check:local -V
 ```
+
+## CI
+
+En cada push/PR a `main`, GitHub Actions (`.github/workflows/ci.yml`):
+
+1. `uv sync --frozen` + `pytest` + smoke CLI (sin montar discos).
+2. `docker build` + smoke de la imagen.
+
+No hace falta un USB Ventoy en CI.
 
 ## Convenciones
 

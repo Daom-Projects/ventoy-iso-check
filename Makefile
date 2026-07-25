@@ -1,10 +1,10 @@
 IMAGE ?= ventoy-iso-check:local
 VENTOY_HOST ?= /mnt/e
 
-.PHONY: sync check scan links test docker-build docker-check docker-scan help
+.PHONY: sync check scan links test docker-build docker-check docker-scan docker-smoke help
 
 help:
-	@echo "make sync | test | scan | check | links | docker-build | docker-check"
+	@echo "make sync | test | scan | check | links | docker-build | docker-smoke | docker-check"
 
 sync:
 	uv sync
@@ -23,6 +23,11 @@ links:
 
 docker-build:
 	docker build -t $(IMAGE) .
+
+# Smoke sin montar disco (útil en CI local)
+docker-smoke: docker-build
+	docker run --rm $(IMAGE) -V
+	docker run --rm $(IMAGE) --help
 
 docker-scan:
 	docker run --rm -v $(VENTOY_HOST):/ventoy $(IMAGE) scan
