@@ -15,9 +15,15 @@ from ventoy_iso_check.filters import filter_items
 from ventoy_iso_check.meta import seal_tree, write_meta_for_iso
 from ventoy_iso_check.paths import default_ventoy_root, project_root
 from ventoy_iso_check.policy import UpgradePolicy
+from ventoy_iso_check.export import write_csv, write_html
 from ventoy_iso_check.reporters import print_table, write_json, write_links_markdown
 from ventoy_iso_check.sisou_bridge import default_sisou_toml, run_sisou
 from ventoy_iso_check.suggest import format_suggestions, suggest_unsupported
+from ventoy_iso_check.ventoy_info import (
+    check_ventoy,
+    format_ventoy_console,
+    format_ventoy_html,
+)
 
 app = typer.Typer(
     name="ventoy-iso-check",
@@ -402,6 +408,138 @@ def links_cmd(
     )
     write_links_markdown(items, output)
     console.print(f"[green]Enlaces escritos en[/green] {output.resolve()}")
+
+
+@app.command("export")
+def export_cmd(
+    root: Optional[Path] = typer.Argument(
+        None,
+        help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
+    ),
+    output: Path = typer.Option(
+        ...,
+        "--output",
+        "-o",
+        help="Archivo de salida (.csv, .html o .json).",
+    ),
+    fmt: Optional[str] = typer.Option(
+        None,
+        "--format",
+        "-f",
+        help="csv | html | json (default: por extensión de -o).",
+    ),
+    offline: bool = typer.Option(False, "--offline"),
+    only: Optional[str] = typer.Option(None, "--only"),
+    only_outdated: bool = typer.Option(False, "--only-outdated"),
+    only_stale: bool = typer.Option(False, "--only-stale"),
+    only_actionable: bool = typer.Option(False, "--only-actionable"),
+    stale_days: Optional[int] = typer.Option(180, "--stale-days"),
+    policy: str = typer.Option("latest-lts", "--policy"),
+    include_ventoy: bool = typer.Option(
+        True,
+        "--ventoy/--no-ventoy",
+        help="Incluir sección Ventoy bootloader (html/json).",
+    ),
+    no_cache: bool = typer.Option(False, "--no-cache"),
+    refresh: bool = typer.Option(False, "--refresh"),
+    workers: int = typer.Option(DEFAULT_RESOLVE_WORKERS, "--workers"),
+    log_level: str = typer.Option("WARNING", "--log-level", "-l"),
+) -> None:
+    """Exportar inventario a CSV, HTML o JSON."""
+    _setup_log(log_level)
+    ventoy = (root or _root_arg()).resolve()
+    if not ventoy.is_dir():
+        console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
+        raise typer.Exit(2)
+
+    fmt_l = (fmt or output.suffix.lstrip(".")).lower()
+    if fmt_l not in ("csv", "html", "json"):
+        console.print("[red]Formato no soportado. Usa csv, html o json.[/red]")
+        raise typer.Exit(2)
+
+    try:
+        pol = UpgradePolicy.parse(policy)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(2) from e
+
+    only_set = {s.strip() for s in only.split(",")} if only else None
+    cache = None
+    if not offline:
+        cache = _build_cache(
+            no_cache=no_cache,
+            refresh=refresh,
+            cache_dir=None,
+            ttl_hours=12.0,
+        )
+    items = run_check(
+        ventoy,
+        online=not offline,
+        only=only_set,
+        cache=cache,
+        policy=pol,
+        max_workers=workers,
+    )
+    sd = None if stale_days == 0 else stale_days
+    items = filter_items(
+        items,
+        only_outdated=only_outdated,
+        only_stale=only_stale,
+        only_actionable=only_actionable,
+        stale_days=sd,
+    )
+
+    vstatus = None
+    if include_ventoy:
+        vstatus = check_ventoy(ventoy, online=not offline)
+
+    if fmt_l == "csv":
+        write_csv(items, output)
+    elif fmt_l == "html":
+        vhtml = format_ventoy_html(vstatus) if vstatus else None
+        write_html(items, output, ventoy_section=vhtml)
+    else:
+        extra = {"ventoy": vstatus.to_dict()} if vstatus else None
+        write_json(items, output, extra=extra)
+
+    console.print(
+        f"[green]Exportado[/green] {len(items)} ISO(s) → {output.resolve()} ({fmt_l})"
+    )
+    if vstatus:
+        console.print(format_ventoy_console(vstatus))
+
+
+@app.command("ventoy")
+def ventoy_cmd(
+    root: Optional[Path] = typer.Argument(
+        None,
+        help="Raíz Ventoy (default: $VENTOY_ROOT | /ventoy | /mnt/e).",
+    ),
+    offline: bool = typer.Option(False, "--offline"),
+    json_out: Optional[Path] = typer.Option(None, "--json"),
+    log_level: str = typer.Option("WARNING", "--log-level", "-l"),
+) -> None:
+    """Comprobar versión del bootloader Ventoy (aparte de las ISOs)."""
+    _setup_log(log_level)
+    ventoy = (root or _root_arg()).resolve()
+    if not ventoy.is_dir():
+        console.print(f"[red]No existe el directorio Ventoy:[/red] {ventoy}")
+        raise typer.Exit(2)
+    st = check_ventoy(ventoy, online=not offline)
+    console.print(format_ventoy_console(st))
+    if json_out:
+        import json
+
+        json_out.write_text(
+            json.dumps(st.to_dict(), indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        console.print(f"JSON → {json_out.resolve()}")
+    # exit codes useful for scripts
+    if st.status == "OUTDATED":
+        raise typer.Exit(1)
+    if st.status in ("ERROR", "NOT_FOUND"):
+        raise typer.Exit(2)
 
 
 @app.command("suggest")

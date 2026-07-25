@@ -3,6 +3,20 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.11.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 8:** `export` a **CSV / HTML / JSON** (`-o`, `--format`).
+- Comando **`ventoy`**: versión local del bootloader vs GitHub latest.
+- Export HTML/JSON incluyen sección Ventoy; exit codes en `ventoy` (1=OUTDATED, 2=error).
+- Tests de export y detección de `Bootloaders/ventoy-*/ventoy/version`.
+
+### Cambiado
+
+- Versión 0.10.0 → 0.11.0.
+- Plan: Fase 8 done; siguiente Fase 9 (CI).
+
 ## [0.10.0] — 2026-07-25
 
 ### Añadido

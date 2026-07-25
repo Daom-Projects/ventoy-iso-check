@@ -160,9 +160,19 @@ def print_table(
         )
 
 
-def write_json(items: list[IsoItem], path: Path) -> None:
+def write_json(
+    items: list[IsoItem],
+    path: Path,
+    *,
+    extra: dict | None = None,
+) -> None:
+    payload: dict | list
+    if extra:
+        payload = {"items": [i.to_dict() for i in items], **extra}
+    else:
+        payload = [i.to_dict() for i in items]
     path.write_text(
-        json.dumps([i.to_dict() for i in items], indent=2, ensure_ascii=False) + "\n",
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 

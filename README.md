@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.10.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.11.0-green.svg)](./CHANGELOG.md)
 
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
@@ -35,7 +35,7 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.10.0)
+## Características (v0.11.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
@@ -45,6 +45,7 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 - **`suggest`**: genera YAML para ISOs aún no catalogadas.
 - Resolvers HTTP en **paralelo** (`--workers`, default 8).
 - Suite **pytest** (`make test`).
+- **Export** CSV / HTML / JSON y check del **bootloader Ventoy**.
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
 - **Cache de latest** (TTL 12 h, `~/.cache/ventoy-iso-check/`).
@@ -210,6 +211,8 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `meta write ISO` | No | Sidecar de una ISO (`--url`, `--hash`) |
 | `meta verify [ROOT]` | No | Verifica SHA-256 de sidecars con hash |
 | `suggest [ROOT]` | No | YAML sugerido para ISOs UNSUPPORTED |
+| `export [ROOT] -o FILE` | opcional | CSV / HTML / JSON del inventario |
+| `ventoy [ROOT]` | Sí* | Versión bootloader local vs GitHub (*offline OK) |
 
 | Flag | Efecto |
 |------|--------|
@@ -259,6 +262,19 @@ uv run ventoy-iso-check check /mnt/e --verify-checksum --only virtio
 ```
 
 > El `*` en File date indica que la fecha viene del sidecar, no solo del FS.
+
+### Export y Ventoy
+
+```bash
+# Reportes
+uv run ventoy-iso-check export /mnt/e -o ~/ventoy-report.csv
+uv run ventoy-iso-check export /mnt/e -o ~/ventoy-report.html
+uv run ventoy-iso-check export /mnt/e -o ~/ventoy-report.json --only-outdated
+
+# Bootloader (tu USB: Bootloaders/ventoy-1.1.10 → version 1.1.10)
+uv run ventoy-iso-check ventoy /mnt/e
+# exit 1 si OUTDATED, 2 si no se encuentra / error
+```
 
 ```bash
 # Solo lo que hay que actualizar (versión)
@@ -400,7 +416,8 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 5 | Multi-LTS / same-series | **done** (v0.8.0) |
 | 6 | suggest + más distros | **done** (v0.9.0) |
 | 7 | tests + HTTP paralelo | **done** (v0.10.0) |
-| 8–9 | export, CI | pending |
+| 8 | export + Ventoy bootloader | **done** (v0.11.0) |
+| 9 | CI GitHub Actions | pending |
 
 Prompt para un agente:
 

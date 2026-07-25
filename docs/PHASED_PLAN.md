@@ -3,8 +3,8 @@ title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
 last_updated: 2026-07-25
-current_phase: 8
-version_baseline: "0.10.0"
+current_phase: 9
+version_baseline: "0.11.0"
 ---
 
 
@@ -31,7 +31,7 @@ Al completar una fase:
 | 5 | Política multi-LTS / pin de serie | **done** | Media |
 | 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | **done** | Media |
 | 7 | Calidad: tests de resolvers + async HTTP | **done** | Media |
-| 8 | Export CSV/HTML + check Ventoy bootloader | pending | Baja |
+| 8 | Export CSV/HTML + check Ventoy bootloader | **done** | Baja |
 | 9 | CI GitHub Actions (lint/test/docker build) | pending | Baja |
 
 ---
@@ -272,15 +272,15 @@ uv run pytest -q
 
 ## Fase 8 — Export y Ventoy bootloader
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.11.0)  
 **Estimación:** M  
 **Depende de:** 1
 
 ### Trabajo
 
-- [ ] `--format csv|html` o subcomando `export`.
-- [ ] Check versión Ventoy en `Bootloaders/ventoy-*/ventoy/version` vs GitHub latest.
-- [ ] Status aparte o sección en resumen (no mezclar con ISOs si confunde).
+- [x] Comando `export` → csv | html | json.
+- [x] Comando `ventoy` → local vs GitHub latest.
+- [x] Sección Ventoy aparte en HTML/JSON y consola.
 
 ---
 
@@ -325,5 +325,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 5 | 2026-07-25 | (v0.8.0) | --policy latest|latest-lts|same-series + --hint-newer-lts |
 | 6 | 2026-07-25 | (v0.9.0) | suggest; Debian/Arch/GParted/Memtest/pearOS |
 | 7 | 2026-07-25 | (v0.10.0) | pytest suite + parallel resolvers --workers |
+| 8 | 2026-07-25 | (v0.11.0) | export csv/html/json + ventoy bootloader check |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

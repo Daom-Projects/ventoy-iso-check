@@ -126,7 +126,7 @@ Cambia con el tiempo; **no hardcodear versiones en código**. Última revisión 
 | `CHANGELOG.md` | Releases |
 | `CONTRIBUTING.md` | Contribuciones |
 | `AGENTS.md` / `CLAUDE.md` | Agentes |
-| `docs/PHASED_PLAN.md` | Roadmap ejecutable (fase actual: **8**) |
+| `docs/PHASED_PLAN.md` | Roadmap ejecutable (fase actual: **9**) |
 | `docs/WINDOWS.md` | Pruebas desde PowerShell / Docker Desktop |
 | `docs/ARCHITECTURE.md` | Módulos y flujos |
 
