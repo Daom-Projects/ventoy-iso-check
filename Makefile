@@ -1,13 +1,16 @@
 IMAGE ?= ventoy-iso-check:local
 VENTOY_HOST ?= /mnt/e
 
-.PHONY: sync check scan links docker-build docker-check docker-scan help
+.PHONY: sync check scan links test docker-build docker-check docker-scan help
 
 help:
-	@echo "make sync | scan | check | links | docker-build | docker-check"
+	@echo "make sync | test | scan | check | links | docker-build | docker-check"
 
 sync:
 	uv sync
+
+test:
+	uv run pytest -q
 
 scan:
 	VENTOY_ROOT=$(VENTOY_HOST) uv run ventoy-iso-check scan $(VENTOY_HOST)

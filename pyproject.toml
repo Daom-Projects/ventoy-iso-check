@@ -1,6 +1,6 @@
 [project]
 name = "ventoy-iso-check"
-version = "0.9.0"
+version = "0.10.0"
 description = "Inventario y comprobación de ISOs desactualizadas en un disco Ventoy (híbrido con SuperISOUpdater/sisou)."
 readme = "README.md"
 license = { text = "MIT" }
@@ -28,3 +28,9 @@ ventoy-iso-check = "ventoy_iso_check.cli:app"
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "respx>=0.23.1",
+]

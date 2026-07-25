@@ -3,7 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/packaging-uv-de5fe9.svg)](https://docs.astral.sh/uv/)
-[![Version](https://img.shields.io/badge/version-0.9.0-green.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.10.0-green.svg)](./CHANGELOG.md)
+
 
 Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](https://www.ventoy.net/).
 
@@ -34,7 +35,7 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 
 ---
 
-## Características (v0.9.0)
+## Características (v0.10.0)
 
 - Inventario de `*.iso` / `*.img` con etiqueta, versión local y tamaño.
 - Comparación con **última release publicada** (Ubuntu LTS-aware, Fedora major, etc.).
@@ -42,6 +43,8 @@ Inventario y comprobación de ISOs **desactualizadas** en un disco [Ventoy](http
 - Sidecars **`.meta.json`**: fecha fiable, URL, SHA-256 opcional.
 - **Política multi-LTS**: `--policy latest|latest-lts|same-series`.
 - **`suggest`**: genera YAML para ISOs aún no catalogadas.
+- Resolvers HTTP en **paralelo** (`--workers`, default 8).
+- Suite **pytest** (`make test`).
 - Filtros: **`--only-outdated`**, **`--only-stale`**, **`--only-actionable`**.
 - **Pre-check de espacio** en `download` (WARN / ABORT + `--force`).
 - **Cache de latest** (TTL 12 h, `~/.cache/ventoy-iso-check/`).
@@ -228,6 +231,7 @@ docker run --rm -v E:\:/ventoy ventoy-iso-check:local download --dry-run
 | `--verify-checksum` | Verifica SHA-256 de sidecars (lento) |
 | `--policy POLICY` | `latest` \| `latest-lts` (default) \| `same-series` |
 | `--hint-newer-lts` | Con same-series, anota LTS/release más nueva |
+| `--workers N` | Hilos HTTP en paralelo (default 8) |
 | `--no-dates` | Oculta File date / Age |
 | `-V` / `--version` | Versión del paquete |
 
@@ -395,7 +399,8 @@ El trabajo futuro está organizado por **fases** en [docs/PHASED_PLAN.md](./docs
 | 4 | Sidecar metadata + checksum | **done** (v0.7.0) |
 | 5 | Multi-LTS / same-series | **done** (v0.8.0) |
 | 6 | suggest + más distros | **done** (v0.9.0) |
-| 7–9 | tests, export, CI | pending |
+| 7 | tests + HTTP paralelo | **done** (v0.10.0) |
+| 8–9 | export, CI | pending |
 
 Prompt para un agente:
 
@@ -410,6 +415,7 @@ No descargues ISOs reales. Verifica con uv. Commit, push y actualiza el plan.
 
 ```bash
 uv sync
+uv run pytest -q          # o: make test
 uv run ventoy-iso-check --help
 uv run ventoy-iso-check -V
 docker build -t ventoy-iso-check:local .

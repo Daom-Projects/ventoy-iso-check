@@ -17,6 +17,7 @@ Sigue **[AGENTS.md](./AGENTS.md)** y ejecuta **una fase** de **[docs/PHASED_PLAN
 
 ```bash
 uv sync
+uv run pytest -q
 uv run ventoy-iso-check -V
 uv run ventoy-iso-check scan --help
 # Con volumen montado (opcional):

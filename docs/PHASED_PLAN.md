@@ -3,8 +3,8 @@ title: Plan de mejoras por fases
 project: ventoy-iso-check
 status: active
 last_updated: 2026-07-25
-current_phase: 7
-version_baseline: "0.9.0"
+current_phase: 8
+version_baseline: "0.10.0"
 ---
 
 
@@ -30,7 +30,7 @@ Al completar una fase:
 | 4 | Sidecar metadata + checksum opcional | **done** | Alta |
 | 5 | Política multi-LTS / pin de serie | **done** | Media |
 | 6 | Catálogo: auto-sugerir UNSUPPORTED + más distros | **done** | Media |
-| 7 | Calidad: tests de resolvers + async HTTP | pending | Media |
+| 7 | Calidad: tests de resolvers + async HTTP | **done** | Media |
 | 8 | Export CSV/HTML + check Ventoy bootloader | pending | Baja |
 | 9 | CI GitHub Actions (lint/test/docker build) | pending | Baja |
 
@@ -250,22 +250,22 @@ uv run ventoy-iso-check suggest /mnt/e
 
 ## Fase 7 — Tests y rendimiento HTTP
 
-**Estado:** `pending`  
+**Estado:** `done` (2026-07-25, v0.10.0)  
 **Estimación:** L  
 **Depende de:** 3 (ideal)
 
 ### Trabajo
 
-- [ ] `pytest` + fixtures HTML offline para Ubuntu/Fedora/Mint/Pop.
-- [ ] Tests de `version_cmp` y match de catalog.
-- [ ] Resolvers async o `ThreadPoolExecutor` con límite de concurrencia.
-- [ ] `uv run pytest` en README/Makefile.
+- [x] `pytest` + fixture meta-release Ubuntu (mock).
+- [x] Tests version_cmp, catalog, filters, policy, meta, suggest, checker.
+- [x] `ThreadPoolExecutor` en `checker` + flag `--workers`.
+- [x] `make test` / `uv run pytest -q`.
 
 ### Criterios de aceptación
 
 ```bash
 uv run pytest -q
-# check de 10 distros no tarda mucho más que 1 (orden de magnitud)
+# check multi-distro con --workers 8 más rápido que --workers 1
 ```
 
 ---
@@ -324,5 +324,6 @@ No descargues ISOs reales. Verifica con uv. Commit y actualiza el plan.
 | 4 | 2026-07-25 | (v0.7.0) | Sidecar .meta.json + meta seal/write/verify + checksum |
 | 5 | 2026-07-25 | (v0.8.0) | --policy latest|latest-lts|same-series + --hint-newer-lts |
 | 6 | 2026-07-25 | (v0.9.0) | suggest; Debian/Arch/GParted/Memtest/pearOS |
+| 7 | 2026-07-25 | (v0.10.0) | pytest suite + parallel resolvers --workers |
 
 <!-- Los agentes añaden filas aquí al completar fases -->

@@ -19,9 +19,10 @@ CLI Python (`uv`) + opcional Docker que **inventaría y comprueba ISOs** en un d
 ```bash
 cd ~/projects/ventoy-iso-check   # o el clone del agente
 uv sync
+uv run pytest -q
 uv run ventoy-iso-check -V
 uv run ventoy-iso-check scan /mnt/e --sort age          # si el volumen está montado
-uv run ventoy-iso-check check /mnt/e --only fedora,ubuntu
+uv run ventoy-iso-check check /mnt/e --only fedora,ubuntu --workers 8
 uv run ventoy-iso-check download /mnt/e --dry-run
 docker build -t ventoy-iso-check:local .                # si tocas Docker
 ```
@@ -106,6 +107,6 @@ docs/
 
 ## Versión actual
 
-- Paquete: **0.9.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
-- Fase del plan activa: **7** (tests + HTTP paralelo)
-- Fases hechas: 0–6
+- Paquete: **0.10.0** (`pyproject.toml`, `src/ventoy_iso_check/__init__.py`)
+- Fase del plan activa: **8** (export + Ventoy bootloader)
+- Fases hechas: 0–7

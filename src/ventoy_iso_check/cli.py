@@ -9,7 +9,7 @@ from rich.console import Console
 
 from ventoy_iso_check import __version__
 from ventoy_iso_check.cache import ResolveCache, default_cache_file
-from ventoy_iso_check.checker import run_check
+from ventoy_iso_check.checker import DEFAULT_RESOLVE_WORKERS, run_check
 from ventoy_iso_check.disk import SpaceVerdict, check_download_space
 from ventoy_iso_check.filters import filter_items
 from ventoy_iso_check.meta import seal_tree, write_meta_for_iso
@@ -252,6 +252,11 @@ def check_cmd(
         "--hint-newer-lts",
         help="Con policy=same-series, anotar si hay LTS/release más nueva disponible.",
     ),
+    workers: int = typer.Option(
+        DEFAULT_RESOLVE_WORKERS,
+        "--workers",
+        help="Hilos para resolvers HTTP en paralelo (default 8).",
+    ),
     sort_by: str = typer.Option(
         "path",
         "--sort",
@@ -289,6 +294,7 @@ def check_cmd(
         verify_checksum=verify_checksum,
         policy=pol,
         hint_newer=hint_newer,
+        max_workers=workers,
     )
     if cache is not None:
         console.print(f"[dim]{cache.stats_line()}[/dim]")
@@ -343,6 +349,7 @@ def links_cmd(
         help="Upgrade policy: latest | latest-lts | same-series.",
     ),
     hint_newer: bool = typer.Option(False, "--hint-newer-lts"),
+    workers: int = typer.Option(DEFAULT_RESOLVE_WORKERS, "--workers"),
     sort_by: str = typer.Option("path", "--sort"),
     log_level: str = typer.Option("WARNING", "--log-level", "-l"),
 ) -> None:
@@ -373,6 +380,7 @@ def links_cmd(
         cache=cache,
         policy=pol,
         hint_newer=hint_newer,
+        max_workers=workers,
     )
     if cache is not None:
         console.print(f"[dim]{cache.stats_line()}[/dim]")

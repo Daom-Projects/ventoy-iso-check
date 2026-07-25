@@ -112,9 +112,21 @@ runtime (slim)           → ENTRYPOINT → ventoy-iso-check
 volume                   → /ventoy = host Ventoy root
 ```
 
+## Paralelismo
+
+`checker.run_check` resuelve distros pendientes con `ThreadPoolExecutor`
+(`max_workers`, CLI `--workers`, default 8). La cache se actualiza al final
+en el hilo principal.
+
+## Tests
+
+```bash
+uv run pytest -q
+# tests/ — version_cmp, catalog, filters, policy, meta, suggest, ubuntu mock, checker
+```
+
 ## Límites conocidos
 
-- Resolvers mayormente síncronos (cache mitiga re-scrape).
 - Scraping HTML sin contratos estables.
 - sisou y catalog pueden discrepar en nombres de archivo.
 - `suggest` genera plantillas; hay que revisar `page` / `resolver` a mano.

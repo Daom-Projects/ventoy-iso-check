@@ -3,6 +3,20 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [0.10.0] — 2026-07-25
+
+### Añadido
+
+- **Fase 7:** suite `pytest` (version_cmp, catalog, filters, policy, meta, suggest, ubuntu mock, checker).
+- Resolución HTTP en **paralelo** (`ThreadPoolExecutor`, `--workers`, default 8).
+- Dev deps: `pytest`, `respx`.
+- `make test`.
+
+### Cambiado
+
+- Versión 0.9.0 → 0.10.0.
+- Plan: Fase 7 done; siguiente Fase 8 (export + Ventoy bootloader).
+
 ## [0.9.0] — 2026-07-25
 
 ### Añadido
