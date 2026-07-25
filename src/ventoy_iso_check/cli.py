@@ -106,10 +106,19 @@ def main_callback(
         raise typer.Exit(0)
     if ctx.invoked_subcommand is not None:
         return
-    # Sin subcomando: menú interactivo en TTY; si no, ayuda.
-    import sys
+    # Sin subcomando: menú si hay consola (o se forzó); si no, ayuda.
+    import os
 
-    if menu or (sys.stdin.isatty() and sys.stdout.isatty()):
+    from ventoy_iso_check.menu import _is_interactive
+
+    force = os.environ.get("VENTOY_ISO_CHECK_INTERACTIVE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    )
+    if menu or force or _is_interactive():
         code = run_menu()
         raise typer.Exit(code)
     console.print(ctx.get_help())

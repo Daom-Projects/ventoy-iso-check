@@ -90,7 +90,14 @@ def test_download_ventoy_release_mocked(tmp_path: Path):
 
 
 def test_run_menu_non_tty():
-    with patch("sys.stdin") as stdin, patch("sys.stdout") as stdout:
+    import os
+
+    with (
+        patch("sys.stdin") as stdin,
+        patch("sys.stdout") as stdout,
+        patch.dict(os.environ, {"VENTOY_ISO_CHECK_INTERACTIVE": "0"}, clear=False),
+        patch("ventoy_iso_check.menu._is_interactive", return_value=False),
+    ):
         stdin.isatty.return_value = False
         stdout.isatty.return_value = False
         code = run_menu(Path("/tmp"))

@@ -3,6 +3,14 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado semántico aproximado.
 
+## [1.1.1] — 2026-07-25
+
+### Corregido
+
+- Menú en Windows nativo: `VENTOY_ISO_CHECK_INTERACTIVE` + detección de consola
+  (uv/PowerShell a veces reportan `isatty=False`).
+- Lanzador Native fuerza modo interactivo y actualiza el clon en `%USERPROFILE%\projects`.
+
 ## [1.1.0] — 2026-07-25
 
 ### Añadido

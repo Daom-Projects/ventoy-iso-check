@@ -6,6 +6,7 @@ Se lanza con `ventoy-iso-check menu` o sin argumentos en un TTY.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -35,6 +36,68 @@ from ventoy_iso_check.ventoy_info import (
 )
 
 console = Console()
+
+
+def _is_interactive() -> bool:
+    """Detectar si podemos pedir input al usuario.
+
+    En Windows + uv/PowerShell, ``stdin.isatty()`` a veces es False aunque la
+    consola sea usable. Forzar con VENTOY_ISO_CHECK_INTERACTIVE=1.
+    """
+    force = os.environ.get("VENTOY_ISO_CHECK_INTERACTIVE", "").strip().lower()
+    if force in ("1", "true", "yes", "y", "on"):
+        return True
+    if force in ("0", "false", "no", "n", "off"):
+        return False
+    try:
+        if sys.stdin is not None and sys.stdin.isatty() and sys.stdout.isatty():
+            return True
+    except Exception:
+        pass
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            # STD_INPUT_HANDLE = -10
+            handle = kernel32.GetStdHandle(-10)
+            mode = ctypes.c_uint32()
+            if handle and kernel32.GetConsoleMode(handle, ctypes.byref(mode)) != 0:
+                return True
+        except Exception:
+            pass
+        # Consola Windows “clásica”: intentar input sin isatty
+        try:
+            if sys.__stdin__ is not None and hasattr(sys.__stdin__, "fileno"):
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def _ask(prompt: str, default: str | None = None) -> str:
+    """Prompt tolerante (Rich o input builtin)."""
+    try:
+        if default is not None:
+            return Prompt.ask(prompt, default=default)
+        return Prompt.ask(prompt)
+    except Exception:
+        suffix = f" [{default}]" if default is not None else ""
+        raw = input(f"{prompt}{suffix}: ").strip()
+        if not raw and default is not None:
+            return default
+        return raw
+
+
+def _confirm(prompt: str, default: bool = True) -> bool:
+    try:
+        return Confirm.ask(prompt, default=default)
+    except Exception:
+        d = "S/n" if default else "s/N"
+        raw = input(f"{prompt} ({d}): ").strip().lower()
+        if not raw:
+            return default
+        return raw in ("y", "yes", "s", "si", "sí", "1")
 
 
 def _banner(root: Path) -> None:
@@ -77,10 +140,7 @@ def _menu_table() -> None:
 
 
 def _ask_root(current: Path) -> Path:
-    raw = Prompt.ask(
-        "Ruta raíz Ventoy",
-        default=str(current),
-    ).strip()
+    raw = _ask("Ruta raíz Ventoy", default=str(current)).strip()
     p = Path(raw).expanduser().resolve()
     if not p.is_dir():
         console.print(f"[red]No es un directorio:[/red] {p}")
@@ -102,7 +162,7 @@ def _ensure_root(root: Path) -> bool:
 def _do_scan(root: Path) -> None:
     if not _ensure_root(root):
         return
-    deep = Confirm.ask("¿Incluir árboles pesados (--deep)?", default=False)
+    deep = _confirm("¿Incluir árboles pesados (--deep)?", default=False)
     items = run_check(root, online=False, deep=deep)
     print_table(items, show_dates=True, stale_days=180, sort_by="age")
     console.print(f"[green]Total:[/green] {len(items)} ISO(s)")
@@ -111,12 +171,13 @@ def _do_scan(root: Path) -> None:
 def _do_check(root: Path, *, only_outdated: bool = False, actionable: bool = False) -> None:
     if not _ensure_root(root):
         return
-    show_urls = Confirm.ask("¿Mostrar URLs de descarga?", default=True)
-    policy_raw = Prompt.ask(
-        "Política de upgrade",
-        choices=["latest-lts", "latest", "same-series"],
+    show_urls = _confirm("¿Mostrar URLs de descarga?", default=True)
+    policy_raw = _ask(
+        "Política de upgrade [latest-lts/latest/same-series]",
         default="latest-lts",
     )
+    if policy_raw not in ("latest-lts", "latest", "same-series"):
+        policy_raw = "latest-lts"
     cache = ResolveCache(path=default_cache_file(), ttl_hours=12.0, enabled=True)
     items = run_check(
         root,
@@ -145,7 +206,7 @@ def _do_links(root: Path) -> None:
     if not _ensure_root(root):
         return
     default = Path.home() / "ventoy-links.md"
-    out = Path(Prompt.ask("Archivo de salida", default=str(default))).expanduser()
+    out = Path(_ask("Archivo de salida", default=str(default))).expanduser()
     items = run_check(root, online=True, cache=ResolveCache(path=default_cache_file()))
     write_links_markdown(items, out)
     console.print(f"[green]Enlaces →[/green] {out.resolve()}")
@@ -154,10 +215,12 @@ def _do_links(root: Path) -> None:
 def _do_export(root: Path) -> None:
     if not _ensure_root(root):
         return
-    fmt = Prompt.ask("Formato", choices=["csv", "html", "json"], default="html")
+    fmt = _ask("Formato [csv/html/json]", default="html").lower()
+    if fmt not in ("csv", "html", "json"):
+        fmt = "html"
     default = Path.home() / f"ventoy-report.{fmt}"
-    out = Path(Prompt.ask("Archivo de salida", default=str(default))).expanduser()
-    only_od = Confirm.ask("¿Solo OUTDATED?", default=False)
+    out = Path(_ask("Archivo de salida", default=str(default))).expanduser()
+    only_od = _confirm("¿Solo OUTDATED?", default=False)
     items = run_check(
         root,
         online=True,
@@ -201,14 +264,12 @@ def _do_bootloaders(root: Path) -> None:
 def _do_ventoy_fetch(root: Path) -> None:
     if not _ensure_root(root):
         return
-    platform = Prompt.ask(
-        "Paquete a descargar",
-        choices=["linux", "windows", "both"],
-        default="both",
-    )
+    platform = _ask("Paquete a descargar [linux/windows/both]", default="both").lower()
+    if platform not in ("linux", "windows", "both"):
+        platform = "both"
     dest = root / "Bootloaders"
     console.print(f"Destino: [cyan]{dest}[/cyan]")
-    if not Confirm.ask("¿Descargar e extraer el release latest de Ventoy?", default=True):
+    if not _confirm("¿Descargar e extraer el release latest de Ventoy?", default=True):
         return
     try:
         paths = download_ventoy_release(
@@ -238,9 +299,9 @@ def _do_suggest(root: Path) -> None:
     suggestions = suggest_unsupported(root)
     text = format_suggestions(suggestions)
     console.print(text)
-    if suggestions and Confirm.ask("¿Guardar a archivo?", default=False):
+    if suggestions and _confirm("¿Guardar a archivo?", default=False):
         out = Path(
-            Prompt.ask("Ruta", default=str(Path.home() / "catalog-suggestions.yaml"))
+            _ask("Ruta", default=str(Path.home() / "catalog-suggestions.yaml"))
         ).expanduser()
         out.write_text(text, encoding="utf-8")
         console.print(f"[green]→[/green] {out.resolve()}")
@@ -249,19 +310,19 @@ def _do_suggest(root: Path) -> None:
 def _do_download(root: Path) -> None:
     if not _ensure_root(root):
         return
-    dry = Confirm.ask("¿Solo dry-run (no descargar)?", default=True)
+    dry = _confirm("¿Solo dry-run (no descargar)?", default=True)
     _space, verdict, msg = check_download_space(root, warn_gib=8.0, abort_gib=2.0, force=False)
     if verdict == SpaceVerdict.ABORT:
         console.print(f"[red]{msg}[/red]")
         return
     if verdict == SpaceVerdict.WARN:
         console.print(f"[yellow]{msg}[/yellow]")
-        if not Confirm.ask("¿Continuar?", default=False):
+        if not _confirm("¿Continuar?", default=False):
             return
     else:
         console.print(f"[green]{msg}[/green]")
-    if not dry and not Confirm.ask(
-        "[bold red]Esto puede descargar varios GiB. ¿Seguro?[/bold red]",
+    if not dry and not _confirm(
+        "Esto puede descargar varios GiB. ¿Seguro?",
         default=False,
     ):
         return
@@ -272,7 +333,7 @@ def _do_download(root: Path) -> None:
 def _do_meta_seal(root: Path) -> None:
     if not _ensure_root(root):
         return
-    compute_hash = Confirm.ask("¿Calcular SHA-256? (lento en USB)", default=False)
+    compute_hash = _confirm("¿Calcular SHA-256? (lento en USB)", default=False)
     written = seal_tree(root, only_missing=True, compute_hash=compute_hash)
     console.print(f"[green]Sidecars escritos:[/green] {len(written)}")
     for p in written[:15]:
@@ -323,21 +384,30 @@ def _do_help() -> None:
 
 def run_menu(root: Path | None = None) -> int:
     """Bucle principal del menú. Devuelve código de salida."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
+    if not _is_interactive():
         console.print(
-            "[yellow]No hay TTY interactivo.[/yellow] "
-            "Usa subcomandos: [bold]scan[/bold], [bold]check[/bold], … "
-            "o [bold]--help[/bold]."
+            "[yellow]No hay consola interactiva detectada.[/yellow]\n"
+            "Opciones:\n"
+            "  • PowerShell normal: [bold]uv run ventoy-iso-check scan[/bold]\n"
+            "  • Forzar menú: [bold]$env:VENTOY_ISO_CHECK_INTERACTIVE=1[/bold] "
+            "luego [bold]uv run ventoy-iso-check menu[/bold]\n"
+            "  • O usa flags: check, export, bootloaders, …"
         )
         return 2
 
     current = (root or default_ventoy_root()).resolve()
+    if not current.is_dir():
+        console.print(f"[red]VENTOY_ROOT no existe:[/red] {current}")
+        console.print(
+            "[dim]En PowerShell: $env:VENTOY_ROOT = 'E:\\'[/dim]"
+        )
+        return 2
 
     while True:
         console.print()
         _banner(current)
         _menu_table()
-        choice = Prompt.ask("Elige opción", default="0").strip()
+        choice = _ask("Elige opción", default="0").strip()
 
         if choice in ("0", "q", "salir", "exit"):
             console.print("[dim]Hasta luego.[/dim]")
@@ -347,11 +417,7 @@ def run_menu(root: Path | None = None) -> int:
         elif choice == "2":
             _do_check(current)
         elif choice == "3":
-            mode = Prompt.ask(
-                "Filtro",
-                choices=["outdated", "actionable"],
-                default="outdated",
-            )
+            mode = _ask("Filtro [outdated/actionable]", default="outdated").lower()
             _do_check(
                 current,
                 only_outdated=mode == "outdated",
@@ -384,6 +450,6 @@ def run_menu(root: Path | None = None) -> int:
             continue
 
         console.print()
-        if not Confirm.ask("¿Volver al menú?", default=True):
+        if not _confirm("¿Volver al menú?", default=True):
             console.print("[dim]Hasta luego.[/dim]")
             return 0

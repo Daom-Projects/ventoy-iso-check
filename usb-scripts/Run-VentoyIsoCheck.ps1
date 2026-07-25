@@ -187,9 +187,11 @@ function Invoke-NativeEngine {
         return 2
     }
 
-    $env:VENTOY_ROOT = $VentoyRoot
-    # Por si el path del USB tiene barra final rara
     $env:VENTOY_ROOT = $VentoyRoot.TrimEnd('\') + '\'
+    # Forzar menú/prompts aunque uv/PowerShell no reporten isatty()
+    $env:VENTOY_ISO_CHECK_INTERACTIVE = "1"
+    $env:PYTHONUNBUFFERED = "1"
+    $env:UV_LINK_MODE = "copy"
 
     Push-Location $WinRepo
     try {
@@ -200,10 +202,22 @@ function Invoke-NativeEngine {
             return $LASTEXITCODE
         }
 
+        # git pull por si el clon es viejo (menu TTY fix)
+        if (Test-Path (Join-Path $WinRepo ".git")) {
+            git -C $WinRepo pull --ff-only 2>$null | Out-Null
+            & uv sync 2>$null | Out-Null
+        }
+
         Write-Info "VENTOY_ROOT=$env:VENTOY_ROOT"
+        Write-Info "VENTOY_ISO_CHECK_INTERACTIVE=$env:VENTOY_ISO_CHECK_INTERACTIVE"
         Write-Info "uv run ventoy-iso-check $($AppArgs -join ' ')"
-        # En consola Windows hay TTY: el menu funciona
-        & uv run ventoy-iso-check @AppArgs
+
+        # Lanzar con cmd para heredar consola real en Windows
+        $argLine = ($AppArgs | ForEach-Object {
+            if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
+        }) -join ' '
+        $cmd = "uv run ventoy-iso-check $argLine"
+        cmd /c $cmd
         return $LASTEXITCODE
     } finally {
         Pop-Location
